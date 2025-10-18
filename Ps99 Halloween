@@ -16,7 +16,20 @@ local Window = Rayfield:CreateWindow({
 })
 
 local AutoDoors = false
+local DoorsToOpen = {}
 local Tab = Window:CreateTab("Auto Buy", 4483362458)
+
+local Dropdown = Tab:CreateDropdown({
+   Name = "Doors to Open",
+   Options = {1, 2,3,4,5},
+   CurrentOption = {},
+   MultipleOptions = true,
+   Flag = "Dropdown1", -- A flag is the identifier for the configuration file, make sure every element has a different flag if you're using configuration saving to ensure no overlaps
+   Callback = function(Options)
+
+    DoorsToOpen = Options
+   end,
+})
 
 Tab:CreateToggle({
 	Name = "Auto Buy Doors 1 & 2",
@@ -26,12 +39,12 @@ Tab:CreateToggle({
 		AutoDoors = Value
 		task.spawn(function()
 			while AutoDoors do
-				for door = 1, 2 do
-					pcall(function()
-						ReplicatedStorage.Network.Plots_Invoke:InvokeServer(LocalData.Id, "PurchaseEgg", door, 3)
-					end)
-					task.wait(0.1)
-				end
+                for _, door in ipairs(DoorsToOpen) do
+                    pcall(function()
+                        ReplicatedStorage.Network.Plots_Invoke:InvokeServer(LocalData.Id, "PurchaseEgg", door, 3)
+                    end)
+                    task.wait()
+                end
 				task.wait()
 			end
 		end)
@@ -41,6 +54,14 @@ Tab:CreateToggle({
 Tab:CreateButton({
 	Name = "Equip Top 10 Pets",
 	Callback = function()
+        
+		for i = 1, 10 do
+			pcall(function()
+                ReplicatedStorage.Network.HalloweenWorld_Claim:InvokeServer(i)
+				ReplicatedStorage.Network.HalloweenWorld_PickUp:InvokeServer(i)
+			end)
+		end
+        task.wait()
 		local data = SaveModule.Get()
 		local Pets = {}
 		local PetsInv = data.Inventory.HPillar or {}
@@ -66,7 +87,7 @@ Tab:CreateButton({
 			local Name = petData.id
 			local Rarity = ({[0]="Base",[1]="Gold",[2]="Rainbow"})[petData.pt] or "Base"
 			local amount = petData._am or 1
-			local uuid = petData._ or petData.uuid or Name  
+			local uuid = _
 
 			for i = 1, amount do
 				table.insert(AllPets, {
@@ -83,15 +104,10 @@ Tab:CreateButton({
 		end)
 
 		for i = 1, math.min(10, #AllPets) do
-			pcall(function()
-				ReplicatedStorage.Network.HalloweenWorld_PickUp:InvokeServer(i)
-			end)
-		end
-
-		for i = 1, math.min(10, #AllPets) do
 			local pet = AllPets[i]
 			task.spawn(function()
 				pcall(function()
+                    print("Equipping pet:", pet.Name, "with UUID:", pet.UUID)
 					ReplicatedStorage.Network.HalloweenWorld_PlacePet:InvokeServer(i, pet.UUID)
 				end)
 			end)
