@@ -18,6 +18,8 @@ local Window = Rayfield:CreateWindow({
 local AutoDoors = false
 local DoorsToOpen = {}
 local EggsToHatch = {}
+local Craft = false
+local CraftToMake = {}
 local AutoCollect = false
 
 local AutoHatch1 = false
@@ -36,6 +38,19 @@ local Dropdown = Tab:CreateDropdown({
    Callback = function(Options)
 
     DoorsToOpen = Options
+   end,
+})
+
+
+local Dropdown = Tab:CreateDropdown({
+   Name = "Pets to Craft",
+   Options = {1, 2,3,4,5},
+   CurrentOption = {},
+   MultipleOptions = true,
+   Flag = "Dropdown1", 
+   Callback = function(Options)
+
+    CraftToMake = Options
    end,
 })
 
@@ -71,6 +86,40 @@ Tab:CreateToggle({
                     pcall(function()
                         ReplicatedStorage.Network.HalloweenWorld_Claim:InvokeServer(i)
                     end)
+                    task.wait()
+                end
+                task.wait(5)
+            end
+        end)
+	end,
+})
+
+
+Tab:CreateToggle({
+	Name = "Auto Craft Pets",
+	CurrentValue = false,
+	Flag = "AutoBuyDoors",
+	Callback = function(Value)
+		Craft = Value
+        task.spawn(function()
+            while Craft do
+                for _, pet in ipairs(CraftToMake) do
+                    pcall(function()
+                        local ohTable3 = {
+                            ["shiny"] = false,
+                            ["pt"] = 0
+                        }
+
+                        ReplicatedStorage.Network.HalloweenCraftingMachine_StartCraft:InvokeServer("HalloweenPetCraftingMachine", pet, ohTable3)
+                    end)
+                    task.wait()
+                end
+                local data = ReplicatedStorage.Network.HalloweenCraftingMachine_GetQueue:InvokeServer()
+                
+                for _, craftInfo in ipairs(data) do
+                    if craftInfo.Remaining == 0 then
+                        ReplicatedStorage.Network.HalloweenWorld_Claim:InvokeServer(craftInfo.UID)
+                    end
                     task.wait()
                 end
                 task.wait(5)
