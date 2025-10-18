@@ -189,7 +189,10 @@ HatchTab:CreateToggle({
 				    			ReplicatedStorage.Network.HalloweenWorld_PickUp:InvokeServer(slot)
 				    			ReplicatedStorage.Network.HalloweenWorld_PlaceEgg:InvokeServer(slot, egg)
 				    		end)
-				    		task.wait()
+                            if not AutoHatchAll then
+                                return
+                            end
+				    		task.wait(0.3)
 				    	end
                     end)
 				end
