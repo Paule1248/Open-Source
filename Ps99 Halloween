@@ -117,12 +117,13 @@ Tab:CreateToggle({
                 local data = ReplicatedStorage.Network.HalloweenCraftingMachine_GetQueue:InvokeServer()
                 
                 for _, craftInfo in ipairs(data) do
+                    print(craftInfo.UID, craftInfo.Remaining)
                     if craftInfo.Remaining == 0 then
-                        ReplicatedStorage.Network.HalloweenWorld_Claim:InvokeServer(craftInfo.UID)
+                        ReplicatedStorage.Network.HalloweenCraftingMachine_Claim:InvokeServer(craftInfo.UID)
                     end
                     task.wait()
                 end
-                task.wait(5)
+                task.wait()
             end
         end)
 	end,
