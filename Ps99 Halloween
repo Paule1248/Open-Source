@@ -1,0 +1,100 @@
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local ClientPlot = require(ReplicatedStorage.Library.Client.PlotCmds.ClientPlot)
+local LocalData = ClientPlot.GetLocal()
+local SaveModule = require(ReplicatedStorage.Library.Client.Save)
+local HPillarItems = ReplicatedStorage.__DIRECTORY.HPillarItems
+
+local Rayfield = loadstring(game:HttpGet("https://sirius.menu/rayfield"))()
+local Window = Rayfield:CreateWindow({
+	Name = "Auto Door & Pets",
+	Icon = 0,
+	LoadingTitle = "Rayfield Interface Suite",
+	LoadingSubtitle = "by Sirius",
+	ShowText = "Rayfield",
+	Theme = "Default",
+	ToggleUIKeybind = "K",
+})
+
+local AutoDoors = false
+local Tab = Window:CreateTab("Auto Buy", 4483362458)
+
+Tab:CreateToggle({
+	Name = "Auto Buy Doors 1 & 2",
+	CurrentValue = false,
+	Flag = "AutoBuyDoors",
+	Callback = function(Value)
+		AutoDoors = Value
+		task.spawn(function()
+			while AutoDoors do
+				for door = 1, 2 do
+					pcall(function()
+						ReplicatedStorage.Network.Plots_Invoke:InvokeServer(LocalData.Id, "PurchaseEgg", door, 3)
+					end)
+					task.wait(0.1)
+				end
+				task.wait()
+			end
+		end)
+	end,
+})
+
+Tab:CreateButton({
+	Name = "Equip Top 10 Pets",
+	Callback = function()
+		local data = SaveModule.Get()
+		local Pets = {}
+		local PetsInv = data.Inventory.HPillar or {}
+		local AllPets = {}
+
+		for _, item in ipairs(HPillarItems:GetChildren()) do
+			local module = require(item)
+			local Name = module.PetId
+			local basegen = module.BaseMoneyPerSecond
+			Pets[Name] = {
+				Base = basegen,
+				Gold = basegen * 2,
+				Rainbow = basegen * 4
+			}
+		end
+
+		local function getPerSecond(Name, Rarity)
+			local pet = Pets[Name]
+			return pet and pet[Rarity] or 0
+		end
+
+		for _, petData in pairs(PetsInv) do
+			local Name = petData.id
+			local Rarity = ({[0]="Base",[1]="Gold",[2]="Rainbow"})[petData.pt] or "Base"
+			local amount = petData._am or 1
+			local uuid = petData._ or petData.uuid or Name  
+
+			for i = 1, amount do
+				table.insert(AllPets, {
+					Name = Name,
+					Rarity = Rarity,
+					PerSecond = getPerSecond(Name, Rarity),
+					UUID = uuid
+				})
+			end
+		end
+
+		table.sort(AllPets, function(a, b)
+			return a.PerSecond > b.PerSecond
+		end)
+
+		for i = 1, math.min(10, #AllPets) do
+			pcall(function()
+				ReplicatedStorage.Network.HalloweenWorld_PickUp:InvokeServer(i)
+			end)
+		end
+
+		for i = 1, math.min(10, #AllPets) do
+			local pet = AllPets[i]
+			task.spawn(function()
+				pcall(function()
+					ReplicatedStorage.Network.HalloweenWorld_PlacePet:InvokeServer(i, pet.UUID)
+				end)
+			end)
+		end
+	end,
+})
