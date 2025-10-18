@@ -183,20 +183,21 @@ HatchTab:CreateToggle({
 		task.spawn(function()
 			while AutoHatchAll do
 				for slot = 1, 10 do
-                    task.spawn(function()
-				    	for _, egg in ipairs(EggsToHatch) do
-				    		pcall(function()
+				    for _, egg in ipairs(EggsToHatch) do
+				    	task.spawn(function()
+				    		local success1, err1 = pcall(function()
 				    			ReplicatedStorage.Network.HalloweenWorld_PickUp:InvokeServer(slot)
+				    		end)
+				    		task.wait() 
+				    		local success2, err2 = pcall(function()
 				    			ReplicatedStorage.Network.HalloweenWorld_PlaceEgg:InvokeServer(slot, egg)
 				    		end)
-                            if not AutoHatchAll then
-                                return
-                            end
-				    		task.wait(0.3)
-				    	end
-                    end)
+				    	end)
+				    	task.wait(0.02) 
+				    end
+                    task.wait(0.05) 
 				end
-				task.wait()
+				task.wait(0.15)
 			end
 		end)
 	end,
