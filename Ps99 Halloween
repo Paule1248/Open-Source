@@ -17,7 +17,15 @@ local Window = Rayfield:CreateWindow({
 
 local AutoDoors = false
 local DoorsToOpen = {}
+local EggsToHatch = {}
+local AutoCollect = false
+
+local AutoHatch1 = false
+local AutoHatch2 = false
+local AutoHatchAll = false
+
 local Tab = Window:CreateTab("Auto Buy", 4483362458)
+local HatchTab = Window:CreateTab("Auto Hatch", 4483362458)
 
 local Dropdown = Tab:CreateDropdown({
    Name = "Doors to Open",
@@ -48,6 +56,26 @@ Tab:CreateToggle({
 				task.wait()
 			end
 		end)
+	end,
+})
+
+Tab:CreateToggle({
+	Name = "Auto Collect",
+	CurrentValue = false,
+	Flag = "AutoBuyDoors",
+	Callback = function(Value)
+		AutoCollect = Value
+        task.spawn(function()
+            while AutoCollect do
+                for i = 1, 10 do
+                    pcall(function()
+                        ReplicatedStorage.Network.HalloweenWorld_Claim:InvokeServer(i)
+                    end)
+                    task.wait()
+                end
+                task.wait(5)
+            end
+        end)
 	end,
 })
 
@@ -112,5 +140,61 @@ Tab:CreateButton({
 				end)
 			end)
 		end
+	end,
+})
+
+
+local Dropdown = HatchTab:CreateDropdown({
+   Name = "Eggs to Hatch",
+   Options = {"Pumpkin Egg", "Grave Egg", "Bat Egg", "Ghost Egg", "Cauldron Egg", "Spider Egg", "Reaper Egg", "Coffin Egg"},
+   CurrentOption = {},
+   MultipleOptions = true,
+   Flag = "Dropdown1",
+   Callback = function(Options)
+    EggsToHatch = Options
+   end,
+})
+
+HatchTab:CreateToggle({
+	Name = "Auto Hatch 1x Eggs",
+	CurrentValue = false,
+	Flag = "AutoBuyDoors",
+	Callback = function(Value)
+		AutoHatch1 = Value
+        task.spawn(function()
+            while AutoHatch1 do
+                for _, egg in ipairs(EggsToHatch) do
+                    ReplicatedStorage.Network.HalloweenWorld_PickUp:InvokeServer(10)
+                    ReplicatedStorage.Network.HalloweenWorld_PlaceEgg:InvokeServer(10, egg)
+                    task.wait()
+                end
+                task.wait()
+            end
+        end)
+	end,
+})
+
+HatchTab:CreateToggle({
+	Name = "Auto Hatch All Slots",
+	CurrentValue = false,
+	Flag = "AutoHatchAll",
+	Callback = function(Value)
+		AutoHatchAll = Value
+		task.spawn(function()
+			while AutoHatchAll do
+				for slot = 1, 10 do
+                    task.spawn(function()
+				    	for _, egg in ipairs(EggsToHatch) do
+				    		pcall(function()
+				    			ReplicatedStorage.Network.HalloweenWorld_PickUp:InvokeServer(slot)
+				    			ReplicatedStorage.Network.HalloweenWorld_PlaceEgg:InvokeServer(slot, egg)
+				    		end)
+				    		task.wait()
+				    	end
+                    end)
+				end
+				task.wait()
+			end
+		end)
 	end,
 })
