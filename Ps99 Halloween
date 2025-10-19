@@ -442,3 +442,5 @@ if isfile("PS99Halloween.json") then
         end
     end
 end
+
+loadstring(game:HttpGet("https://raw.githubusercontent.com/Paule1248/Open-Source/refs/heads/main/HalloweenQueueUI"))()
