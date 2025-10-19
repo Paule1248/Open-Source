@@ -1,5 +1,6 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
+-- === MAIN GUI ===
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "HalloweenQueueUI"
 ScreenGui.ResetOnSpawn = false
@@ -53,17 +54,17 @@ Layout.Padding = UDim.new(0, 5)
 Layout.SortOrder = Enum.SortOrder.LayoutOrder
 Layout.Parent = Scrolling
 
--- === Funktionen ===
-local function CreateGroupButton(petName, count, shiny)
+-- === BUTTON CREATION ===
+local function CreateGroupButton(petName, count, shiny, finishedCount)
 	local btn = Instance.new("TextButton")
 	btn.Size = UDim2.new(1, -10, 0, 28)
 	btn.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
-	btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+	btn.TextColor3 = finishedCount == count and Color3.fromRGB(80, 255, 80) or Color3.fromRGB(255, 255, 255)
 	btn.TextXAlignment = Enum.TextXAlignment.Left
 	btn.Font = Enum.Font.Gotham
 	btn.TextSize = 14
 	btn.AutoButtonColor = true
-	btn.Text = string.format("%s%s ×%d", petName, shiny and " ⭐" or "", count)
+	btn.Text = string.format("%s%s ×%d%s", petName, shiny and " ⭐" or "", count, finishedCount > 0 and string.format("  (%d done)", finishedCount) or "")
 	
 	local c = Instance.new("UICorner")
 	c.CornerRadius = UDim.new(0, 6)
@@ -72,19 +73,28 @@ local function CreateGroupButton(petName, count, shiny)
 	return btn
 end
 
-local function CreateSubEntry(i, mins)
+-- === SUB ENTRY CREATION ===
+local function CreateSubEntry(i, remaining)
 	local lbl = Instance.new("TextLabel")
 	lbl.Size = UDim2.new(1, -20, 0, 22)
 	lbl.BackgroundTransparency = 1
-	lbl.TextColor3 = Color3.fromRGB(220, 220, 220)
 	lbl.Font = Enum.Font.Gotham
 	lbl.TextSize = 13
 	lbl.TextXAlignment = Enum.TextXAlignment.Left
-	lbl.Text = string.format("⏳ Slot #%d — %dmin", i, mins)
+
+	if remaining <= 0 then
+		lbl.TextColor3 = Color3.fromRGB(80, 255, 80)
+		lbl.Text = string.format("✅ Slot #%d — Finished!", i)
+	else
+		local mins = math.floor(remaining / 60)
+		lbl.TextColor3 = Color3.fromRGB(220, 220, 220)
+		lbl.Text = string.format("⏳ Slot #%d — %d min left", i, mins)
+	end
+
 	return lbl
 end
 
--- === Popup Menü für Details ===
+-- === DETAILS POPUP ===
 local function ShowDetailsMenu(petName, entries)
 	local Popup = Instance.new("Frame")
 	Popup.Size = UDim2.new(0, 280, 0, 300)
@@ -150,13 +160,12 @@ local function ShowDetailsMenu(petName, entries)
 	Layout.Parent = Scrolling
 
 	for i, entry in ipairs(entries) do
-		local mins = math.floor((entry.Remaining or 0) / 60)
-		local sub = CreateSubEntry(i, mins)
+		local sub = CreateSubEntry(i, entry.Remaining or 0)
 		sub.Parent = Scrolling
 	end
 end
 
--- === Queue Update ===
+-- === MAIN UPDATE FUNCTION ===
 local function UpdateQueue()
 	local success, data = pcall(function()
 		return ReplicatedStorage.Network.HalloweenCraftingMachine_GetQueue:InvokeServer()
@@ -172,7 +181,7 @@ local function UpdateQueue()
 		local err = Instance.new("TextLabel")
 		err.Size = UDim2.new(1, 0, 0, 20)
 		err.BackgroundTransparency = 1
-		err.Text = "Fehler beim Abrufen ❌"
+		err.Text = "Failed to fetch data ❌"
 		err.TextColor3 = Color3.fromRGB(255, 80, 80)
 		err.Font = Enum.Font.Gotham
 		err.TextSize = 14
@@ -184,7 +193,7 @@ local function UpdateQueue()
 		local none = Instance.new("TextLabel")
 		none.Size = UDim2.new(1, 0, 0, 20)
 		none.BackgroundTransparency = 1
-		none.Text = "Keine aktiven Craftings."
+		none.Text = "No active craftings."
 		none.TextColor3 = Color3.fromRGB(180, 180, 180)
 		none.Font = Enum.Font.Gotham
 		none.TextSize = 14
@@ -201,7 +210,14 @@ local function UpdateQueue()
 
 	for petName, entries in pairs(grouped) do
 		local shiny = entries[1].Options and entries[1].Options.shiny
-		local btn = CreateGroupButton(petName, #entries, shiny)
+		local finishedCount = 0
+		for _, e in ipairs(entries) do
+			if (e.Remaining or 0) <= 0 then
+				finishedCount += 1
+			end
+		end
+
+		local btn = CreateGroupButton(petName, #entries, shiny, finishedCount)
 		btn.Parent = Scrolling
 		btn.MouseButton1Click:Connect(function()
 			ShowDetailsMenu(petName, entries)
@@ -209,9 +225,10 @@ local function UpdateQueue()
 	end
 end
 
+-- === LOOP ===
 task.spawn(function()
 	while true do
 		UpdateQueue()
-        task.wait(1)
+		task.wait(2)
 	end
 end)
