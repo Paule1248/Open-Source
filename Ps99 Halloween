@@ -21,6 +21,7 @@ local EggsToHatch = {}
 local Craft = false
 local CraftToMake = {}
 local AutoCollect = false
+local EquipBestPets = false
 
 local AutoHatch1 = false
 local AutoHatch2 = false
@@ -28,8 +29,9 @@ local AutoHatchAll = false
 
 local Tab = Window:CreateTab("Auto Buy", 4483362458)
 local HatchTab = Window:CreateTab("Auto Hatch", 4483362458)
+local Settings = Window:CreateTab("Settings", 4483362458)
 
-local Dropdown = Tab:CreateDropdown({
+local Dropdown1 = Tab:CreateDropdown({
    Name = "Doors to Open",
    Options = {1, 2,3,4,5},
    CurrentOption = {},
@@ -42,7 +44,7 @@ local Dropdown = Tab:CreateDropdown({
 })
 
 
-local Dropdown = Tab:CreateDropdown({
+local Dropdown2 = Tab:CreateDropdown({
    Name = "Pets to Craft",
    Options = {1, 2,3,4,5},
    CurrentOption = {},
@@ -54,7 +56,7 @@ local Dropdown = Tab:CreateDropdown({
    end,
 })
 
-Tab:CreateToggle({
+local AutoDoorsToggle = Tab:CreateToggle({
 	Name = "Auto Buy Doors 1 & 2",
 	CurrentValue = false,
 	Flag = "AutoBuyDoors",
@@ -74,7 +76,7 @@ Tab:CreateToggle({
 	end,
 })
 
-Tab:CreateToggle({
+local AutoCollectToggle = Tab:CreateToggle({
 	Name = "Auto Collect",
 	CurrentValue = false,
 	Flag = "AutoBuyDoors",
@@ -95,7 +97,7 @@ Tab:CreateToggle({
 })
 
 
-Tab:CreateToggle({
+local AutoCraftToggle = Tab:CreateToggle({
 	Name = "Auto Craft Pets",
 	CurrentValue = false,
 	Flag = "AutoBuyDoors",
@@ -193,8 +195,74 @@ Tab:CreateButton({
 	end,
 })
 
+local AuEquipedToggle = Tab:CreateToggle({
+	Name = "Equip Top 10 Pets",
+	Callback = function(Value)
+        EquipBestPets = Value
+		while EquipBestPets do 
+			for i = 1, 10 do
+				pcall(function()
+    	            ReplicatedStorage.Network.HalloweenWorld_Claim:InvokeServer(i)
+					ReplicatedStorage.Network.HalloweenWorld_PickUp:InvokeServer(i)
+				end)
+			end
+    	    task.wait()
+			local data = SaveModule.Get()
+			local Pets = {}
+			local PetsInv = data.Inventory.HPillar or {}
+			local AllPets = {}
 
-local Dropdown = HatchTab:CreateDropdown({
+			for _, item in ipairs(HPillarItems:GetChildren()) do
+				local module = require(item)
+				local Name = module.PetId
+				local basegen = module.BaseMoneyPerSecond
+				Pets[Name] = {
+					Base = basegen,
+					Gold = basegen * 2,
+					Rainbow = basegen * 4
+				}
+			end
+
+			local function getPerSecond(Name, Rarity)
+				local pet = Pets[Name]
+				return pet and pet[Rarity] or 0
+			end
+
+			for _, petData in pairs(PetsInv) do
+				local Name = petData.id
+				local Rarity = ({[0]="Base",[1]="Gold",[2]="Rainbow"})[petData.pt] or "Base"
+				local amount = petData._am or 1
+				local uuid = _
+
+				for i = 1, amount do
+					table.insert(AllPets, {
+						Name = Name,
+						Rarity = Rarity,
+						PerSecond = getPerSecond(Name, Rarity),
+						UUID = uuid
+					})
+				end
+			end
+
+			table.sort(AllPets, function(a, b)
+				return a.PerSecond > b.PerSecond
+			end)
+
+			for i = 1, math.min(10, #AllPets) do
+				local pet = AllPets[i]
+				task.spawn(function()
+					pcall(function()
+    	                print("Equipping pet:", pet.Name, "with UUID:", pet.UUID)
+						ReplicatedStorage.Network.HalloweenWorld_PlacePet:InvokeServer(i, pet.UUID)
+					end)
+				end)
+			end
+			task.wait(60)
+		end
+	end,
+})
+
+local Dropdown3 = HatchTab:CreateDropdown({
    Name = "Eggs to Hatch",
    Options = {"Pumpkin Egg", "Grave Egg", "Bat Egg", "Ghost Egg", "Cauldron Egg", "Spider Egg", "Reaper Egg", "Coffin Egg"},
    CurrentOption = {},
@@ -205,7 +273,7 @@ local Dropdown = HatchTab:CreateDropdown({
    end,
 })
 
-HatchTab:CreateToggle({
+local AutoHatch1xAuto = HatchTab:CreateToggle({
 	Name = "Auto Hatch 1x Eggs",
 	CurrentValue = false,
 	Flag = "AutoBuyDoors",
@@ -224,7 +292,7 @@ HatchTab:CreateToggle({
 	end,
 })
 
-HatchTab:CreateToggle({
+local AutoHatch10xAuto = HatchTab:CreateToggle({
 	Name = "Auto Hatch All Slots",
 	CurrentValue = false,
 	Flag = "AutoHatchAll",
@@ -252,3 +320,63 @@ HatchTab:CreateToggle({
 		end)
 	end,
 })
+
+
+local Button = Settings:CreateButton({
+   Name = "Save Settings",
+   Callback = function()
+        local Settings = {
+            AutoDoors = AutoDoors,
+			DoorsToOpen = DoorsToOpen,
+			AutoCollect = AutoCollect,
+			Craft = Craft,
+			CraftToMake = CraftToMake,
+			EquipBestPets = EquipBestPets,
+			AutoHatch1 = AutoHatch1,
+			AutoHatchAll = AutoHatchAll,
+			EggsToHatch = EggsToHatch,
+        }
+
+        writefile("PS99Halloween.json", game:GetService("HttpService"):JSONEncode(Settings))
+   end,
+})
+
+
+
+
+if isfile("PS99Halloween.json") then
+    Settings = readfile("PS99Halloween.json")
+    if Settings then
+        for setting, value in pairs(game:GetService("HttpService"):JSONDecode(Settings)) do
+            print("Loading setting:", setting, value)
+            if setting == "AutoDoors" then
+				AutoDoors = value
+				AutoDoorsToggle:Set(AutoDoors)
+			elseif setting == "DoorsToOpen" then
+				DoorsToOpen = value
+				Dropdown1:Set(DoorsToOpen)
+			elseif setting == "AutoCollect" then
+				AutoCollect = value
+				AutoCollectToggle:Set(AutoCollect)
+			elseif setting == "Craft" then
+				Craft = value
+				AutoCraftToggle:Set(AutoCollect)
+			elseif setting == "CraftToMake" then
+				CraftToMake = value
+				Dropdown2:Set(CraftToMake)
+			elseif setting == "EquipBestPets" then
+				EquipBestPets = value
+				AuEquipedToggle:Set(EquipBestPets)
+			elseif setting == "AutoHatch1" then
+				AutoHatch1 = value
+				AutoHatch1xAuto:Set(AutoHatch1)
+			elseif setting == "AutoHatchAll" then
+				AutoHatchAll = value
+				AutoHatch10xAuto:Set(AutoHatchAll)
+			elseif setting == "EggsToHatch" then
+				EggsToHatch = value
+				Dropdown3:Set(EggsToHatch)
+			end
+        end
+    end
+end
