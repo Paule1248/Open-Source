@@ -343,7 +343,7 @@ local Button = Settings:CreateButton({
 })
 
 ReplicatedStorage.Network["Idle Tracking: Stop Timer"]:FireServer()
-Players.LocalPlayer.PlayerScripts.Scripts.Core["Idle Tracking"].Disable = true
+Players.LocalPlayer.PlayerScripts.Scripts.Core["Idle Tracking"].Disabled = true
 
 task.spawn(function()
 	local GC = getconnections or get_signal_cons
@@ -363,8 +363,14 @@ task.spawn(function()
         VirtualUser:ClickButton2(Vector2.new())
     end)
 
-end)
+    task.spawn(function()
+        while task.wait(120) do
+            VirtualUser:CaptureController()
+            VirtualUser:ClickButton2(Vector2.new())
+        end
+    end)
 
+end)
 if isfile("PS99Halloween.json") then
     Settings = readfile("PS99Halloween.json")
     if Settings then
