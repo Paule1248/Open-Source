@@ -7,10 +7,10 @@ local HPillarItems = ReplicatedStorage.__DIRECTORY.HPillarItems
 
 local Rayfield = loadstring(game:HttpGet("https://sirius.menu/rayfield"))()
 local Window = Rayfield:CreateWindow({
-	Name = "Auto Door & Pets",
+	Name = "Auto Halloween Event yay",
 	Icon = 0,
 	LoadingTitle = "Rayfield Interface Suite",
-	LoadingSubtitle = "by Sirius",
+	LoadingSubtitle = "by Paule",
 	ShowText = "Rayfield",
 	Theme = "Default",
 	ToggleUIKeybind = "K",
@@ -381,7 +381,7 @@ Players.LocalPlayer.PlayerScripts.Scripts.Core["Idle Tracking"].Disabled = true
 
 task.spawn(function()
 	local GC = getconnections or get_signal_cons
-
+	local player = Players.LocalPlayer
     if GC then
         for i, v in pairs(GC(player.Idled)) do
             if v.Disable then
@@ -392,6 +392,7 @@ task.spawn(function()
         end
     end
 
+	
     player.Idled:Connect(function()
         VirtualUser:CaptureController()
         VirtualUser:ClickButton2(Vector2.new())
