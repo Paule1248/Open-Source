@@ -1,3 +1,4 @@
+local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local ClientPlot = require(ReplicatedStorage.Library.Client.PlotCmds.ClientPlot)
 local LocalData = ClientPlot.GetLocal()
@@ -341,8 +342,28 @@ local Button = Settings:CreateButton({
    end,
 })
 
+ReplicatedStorage.Network["Idle Tracking: Stop Timer"]:FireServer()
+Players.LocalPlayer.PlayerScripts.Scripts.Core["Idle Tracking"].Disable = true
 
+task.spawn(function()
+	local GC = getconnections or get_signal_cons
 
+    if GC then
+        for i, v in pairs(GC(player.Idled)) do
+            if v.Disable then
+                v:Disable()
+            elseif v.Disconnect then
+                v:Disconnect()
+            end
+        end
+    end
+
+    player.Idled:Connect(function()
+        VirtualUser:CaptureController()
+        VirtualUser:ClickButton2(Vector2.new())
+    end)
+
+end)
 
 if isfile("PS99Halloween.json") then
     Settings = readfile("PS99Halloween.json")
