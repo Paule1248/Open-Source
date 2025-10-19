@@ -342,6 +342,40 @@ local Button = Settings:CreateButton({
    end,
 })
 
+local UselessStuff = {
+	workspace.__THINGS,
+	workspace.__DEBRIS,
+	workspace.BlockPartyConfiguration,
+	workspace.FlyBorder,
+	workspace.HalloweenOuter,
+}
+
+local SafePart = Instance.new("Part")
+SafePart.Size = Vector3.new(588, 0.0020000000949949026, 479)
+SafePart.Position = Vector3.new(-14866.390625, 831.328857421875, -10190.798828125)
+SafePart.Anchored = true
+SafePart.Transparency = 1
+SafePart.Parent = workspace
+
+local CPU_Saver = Settings:CreateToggle({
+   Name = "CPU Saver ",
+   CurrentValue = false,
+   Flag = "AutoHatchAll",
+   Callback = function(Value)
+		for _, item in ipairs(game.Lighting:GetChildren()) do
+			item:Destroy()
+		end
+		if Value then
+			for _, item in ipairs(UselessStuff) do
+				item.Parent = ReplicatedStorage
+			end
+		else
+			for _, item in ipairs(UselessStuff) do
+				item.Parent = workspace
+			end
+		end
+   end,
+})
 ReplicatedStorage.Network["Idle Tracking: Stop Timer"]:FireServer()
 Players.LocalPlayer.PlayerScripts.Scripts.Core["Idle Tracking"].Disabled = true
 
@@ -371,6 +405,7 @@ task.spawn(function()
     end)
 
 end)
+
 if isfile("PS99Halloween.json") then
     Settings = readfile("PS99Halloween.json")
     if Settings then
