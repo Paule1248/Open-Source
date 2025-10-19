@@ -1,0 +1,447 @@
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local ClientPlot = require(ReplicatedStorage.Library.Client.PlotCmds.ClientPlot)
+local LocalData = ClientPlot.GetLocal()
+local SaveModule = require(ReplicatedStorage.Library.Client.Save)
+local HPillarItems = ReplicatedStorage.__DIRECTORY.HPillarItems
+
+local Rayfield = loadstring(game:HttpGet("https://sirius.menu/rayfield"))()
+local Window = Rayfield:CreateWindow({
+	Name = "Auto Halloween Event yay",
+	Icon = 0,
+	LoadingTitle = "Rayfield Interface Suite",
+	LoadingSubtitle = "by Paule",
+	ShowText = "Rayfield",
+	Theme = "Default",
+	ToggleUIKeybind = "K",
+})
+
+local AutoDoors = false
+local DoorsToOpen = {}
+local EggsToHatch = {}
+local Craft = false
+local CraftToMake = {}
+local AutoCollect = false
+local EquipBestPets = false
+
+local AutoHatch1 = false
+local AutoHatch2 = false
+local AutoHatchAll = false
+
+local Tab = Window:CreateTab("Auto Buy", 4483362458)
+local HatchTab = Window:CreateTab("Auto Hatch", 4483362458)
+local Settings = Window:CreateTab("Settings", 4483362458)
+
+local Dropdown1 = Tab:CreateDropdown({
+   Name = "Doors to Open",
+   Options = {1, 2,3,4,5},
+   CurrentOption = {},
+   MultipleOptions = true,
+   Flag = "Dropdown1", -- A flag is the identifier for the configuration file, make sure every element has a different flag if you're using configuration saving to ensure no overlaps
+   Callback = function(Options)
+
+    DoorsToOpen = Options
+   end,
+})
+
+
+local Dropdown2 = Tab:CreateDropdown({
+   Name = "Pets to Craft",
+   Options = {1, 2,3,4,5},
+   CurrentOption = {},
+   MultipleOptions = true,
+   Flag = "Dropdown1", 
+   Callback = function(Options)
+
+    CraftToMake = Options
+   end,
+})
+
+local AutoDoorsToggle = Tab:CreateToggle({
+	Name = "Auto Buy Doors 1 & 2",
+	CurrentValue = false,
+	Flag = "AutoBuyDoors",
+	Callback = function(Value)
+		AutoDoors = Value
+		task.spawn(function()
+			while AutoDoors do
+                for _, door in ipairs(DoorsToOpen) do
+                    pcall(function()
+                        ReplicatedStorage.Network.Plots_Invoke:InvokeServer(LocalData.Id, "PurchaseEgg", door, 3)
+                    end)
+                    task.wait()
+                end
+				task.wait()
+			end
+		end)
+	end,
+})
+
+local AutoCollectToggle = Tab:CreateToggle({
+	Name = "Auto Collect",
+	CurrentValue = false,
+	Flag = "AutoBuyDoors",
+	Callback = function(Value)
+		AutoCollect = Value
+        task.spawn(function()
+            while AutoCollect do
+                for i = 1, 10 do
+                    pcall(function()
+                        ReplicatedStorage.Network.HalloweenWorld_Claim:InvokeServer(i)
+                    end)
+                    task.wait()
+                end
+                task.wait(5)
+            end
+        end)
+	end,
+})
+
+
+local AutoCraftToggle = Tab:CreateToggle({
+	Name = "Auto Craft Pets",
+	CurrentValue = false,
+	Flag = "AutoBuyDoors",
+	Callback = function(Value)
+		Craft = Value
+        task.spawn(function()
+            while Craft do
+                for _, pet in ipairs(CraftToMake) do
+                    pcall(function()
+                        local ohTable3 = {
+                            ["shiny"] = false,
+                            ["pt"] = 0
+                        }
+
+                        ReplicatedStorage.Network.HalloweenCraftingMachine_StartCraft:InvokeServer("HalloweenPetCraftingMachine", pet, ohTable3)
+                    end)
+                    task.wait()
+                end
+                local data = ReplicatedStorage.Network.HalloweenCraftingMachine_GetQueue:InvokeServer()
+                
+                for _, craftInfo in ipairs(data) do
+                    print(craftInfo.UID, craftInfo.Remaining)
+                    if craftInfo.Remaining == 0 then
+                        ReplicatedStorage.Network.HalloweenCraftingMachine_Claim:InvokeServer(craftInfo.UID)
+                    end
+                    task.wait()
+                end
+                task.wait()
+            end
+        end)
+	end,
+})
+
+Tab:CreateButton({
+	Name = "Equip Top 10 Pets",
+	Callback = function()
+        
+		for i = 1, 10 do
+			pcall(function()
+                ReplicatedStorage.Network.HalloweenWorld_Claim:InvokeServer(i)
+				ReplicatedStorage.Network.HalloweenWorld_PickUp:InvokeServer(i)
+			end)
+		end
+        task.wait()
+		local data = SaveModule.Get()
+		local Pets = {}
+		local PetsInv = data.Inventory.HPillar or {}
+		local AllPets = {}
+
+		for _, item in ipairs(HPillarItems:GetChildren()) do
+			local module = require(item)
+			local Name = module.PetId
+			local basegen = module.BaseMoneyPerSecond
+			Pets[Name] = {
+				Base = basegen,
+				Gold = basegen * 2,
+				Rainbow = basegen * 4
+			}
+		end
+
+		local function getPerSecond(Name, Rarity)
+			local pet = Pets[Name]
+			return pet and pet[Rarity] or 0
+		end
+
+		for _, petData in pairs(PetsInv) do
+			local Name = petData.id
+			local Rarity = ({[0]="Base",[1]="Gold",[2]="Rainbow"})[petData.pt] or "Base"
+			local amount = petData._am or 1
+			local uuid = _
+
+			for i = 1, amount do
+				table.insert(AllPets, {
+					Name = Name,
+					Rarity = Rarity,
+					PerSecond = getPerSecond(Name, Rarity),
+					UUID = uuid
+				})
+			end
+		end
+
+		table.sort(AllPets, function(a, b)
+			return a.PerSecond > b.PerSecond
+		end)
+
+		for i = 1, math.min(10, #AllPets) do
+			local pet = AllPets[i]
+			task.spawn(function()
+				pcall(function()
+                    print("Equipping pet:", pet.Name, "with UUID:", pet.UUID)
+					ReplicatedStorage.Network.HalloweenWorld_PlacePet:InvokeServer(i, pet.UUID)
+				end)
+			end)
+		end
+	end,
+})
+
+local AuEquipedToggle = Tab:CreateToggle({
+	Name = "Equip Top 10 Pets",
+	Callback = function(Value)
+        EquipBestPets = Value
+		while EquipBestPets do 
+			for i = 1, 10 do
+				pcall(function()
+    	            ReplicatedStorage.Network.HalloweenWorld_Claim:InvokeServer(i)
+					ReplicatedStorage.Network.HalloweenWorld_PickUp:InvokeServer(i)
+				end)
+			end
+    	    task.wait()
+			local data = SaveModule.Get()
+			local Pets = {}
+			local PetsInv = data.Inventory.HPillar or {}
+			local AllPets = {}
+
+			for _, item in ipairs(HPillarItems:GetChildren()) do
+				local module = require(item)
+				local Name = module.PetId
+				local basegen = module.BaseMoneyPerSecond
+				Pets[Name] = {
+					Base = basegen,
+					Gold = basegen * 2,
+					Rainbow = basegen * 4
+				}
+			end
+
+			local function getPerSecond(Name, Rarity)
+				local pet = Pets[Name]
+				return pet and pet[Rarity] or 0
+			end
+
+			for _, petData in pairs(PetsInv) do
+				local Name = petData.id
+				local Rarity = ({[0]="Base",[1]="Gold",[2]="Rainbow"})[petData.pt] or "Base"
+				local amount = petData._am or 1
+				local uuid = _
+
+				for i = 1, amount do
+					table.insert(AllPets, {
+						Name = Name,
+						Rarity = Rarity,
+						PerSecond = getPerSecond(Name, Rarity),
+						UUID = uuid
+					})
+				end
+			end
+
+			table.sort(AllPets, function(a, b)
+				return a.PerSecond > b.PerSecond
+			end)
+
+			for i = 1, math.min(10, #AllPets) do
+				local pet = AllPets[i]
+				task.spawn(function()
+					pcall(function()
+    	                print("Equipping pet:", pet.Name, "with UUID:", pet.UUID)
+						ReplicatedStorage.Network.HalloweenWorld_PlacePet:InvokeServer(i, pet.UUID)
+					end)
+				end)
+			end
+			task.wait(60)
+		end
+	end,
+})
+
+local Dropdown3 = HatchTab:CreateDropdown({
+   Name = "Eggs to Hatch",
+   Options = {"Pumpkin Egg", "Grave Egg", "Bat Egg", "Ghost Egg", "Cauldron Egg", "Spider Egg", "Reaper Egg", "Coffin Egg"},
+   CurrentOption = {},
+   MultipleOptions = true,
+   Flag = "Dropdown1",
+   Callback = function(Options)
+    EggsToHatch = Options
+   end,
+})
+
+local AutoHatch1xAuto = HatchTab:CreateToggle({
+	Name = "Auto Hatch 1x Eggs",
+	CurrentValue = false,
+	Flag = "AutoBuyDoors",
+	Callback = function(Value)
+		AutoHatch1 = Value
+        task.spawn(function()
+            while AutoHatch1 do
+                for _, egg in ipairs(EggsToHatch) do
+                    ReplicatedStorage.Network.HalloweenWorld_PickUp:InvokeServer(10)
+                    ReplicatedStorage.Network.HalloweenWorld_PlaceEgg:InvokeServer(10, egg)
+                    task.wait()
+                end
+                task.wait()
+            end
+        end)
+	end,
+})
+
+local AutoHatch10xAuto = HatchTab:CreateToggle({
+	Name = "Auto Hatch All Slots",
+	CurrentValue = false,
+	Flag = "AutoHatchAll",
+	Callback = function(Value)
+		AutoHatchAll = Value
+		task.spawn(function()
+			while AutoHatchAll do
+				for slot = 1, 10 do
+				    for _, egg in ipairs(EggsToHatch) do
+				    	task.spawn(function()
+				    		local success1, err1 = pcall(function()
+				    			ReplicatedStorage.Network.HalloweenWorld_PickUp:InvokeServer(slot)
+				    		end)
+				    		task.wait() 
+				    		local success2, err2 = pcall(function()
+				    			ReplicatedStorage.Network.HalloweenWorld_PlaceEgg:InvokeServer(slot, egg)
+				    		end)
+				    	end)
+				    	task.wait(0.02) 
+				    end
+                    task.wait(0.05) 
+				end
+				task.wait(0.15)
+			end
+		end)
+	end,
+})
+
+
+local Button = Settings:CreateButton({
+   Name = "Save Settings",
+   Callback = function()
+        local Settings = {
+            AutoDoors = AutoDoors,
+			DoorsToOpen = DoorsToOpen,
+			AutoCollect = AutoCollect,
+			Craft = Craft,
+			CraftToMake = CraftToMake,
+			EquipBestPets = EquipBestPets,
+			AutoHatch1 = AutoHatch1,
+			AutoHatchAll = AutoHatchAll,
+			EggsToHatch = EggsToHatch,
+        }
+
+        writefile("PS99Halloween.json", game:GetService("HttpService"):JSONEncode(Settings))
+   end,
+})
+
+local UselessStuff = {
+	workspace.__THINGS,
+	workspace.__DEBRIS,
+	workspace.BlockPartyConfiguration,
+	workspace.FlyBorder,
+	workspace.HalloweenOuter,
+}
+
+local SafePart = Instance.new("Part")
+SafePart.Size = Vector3.new(588, 0.0020000000949949026, 479)
+SafePart.Position = Vector3.new(-14866.390625, 831.328857421875, -10190.798828125)
+SafePart.Anchored = true
+SafePart.Transparency = 1
+SafePart.Parent = workspace
+
+local CPU_Saver = Settings:CreateToggle({
+   Name = "CPU Saver ",
+   CurrentValue = false,
+   Flag = "AutoHatchAll",
+   Callback = function(Value)
+		for _, item in ipairs(game.Lighting:GetChildren()) do
+			item:Destroy()
+		end
+		if Value then
+			for _, item in ipairs(UselessStuff) do
+				item.Parent = ReplicatedStorage
+			end
+		else
+			for _, item in ipairs(UselessStuff) do
+				item.Parent = workspace
+			end
+		end
+   end,
+})
+ReplicatedStorage.Network["Idle Tracking: Stop Timer"]:FireServer()
+Players.LocalPlayer.PlayerScripts.Scripts.Core["Idle Tracking"].Disabled = true
+
+task.spawn(function()
+	local GC = getconnections or get_signal_cons
+	local player = Players.LocalPlayer
+    if GC then
+        for i, v in pairs(GC(player.Idled)) do
+            if v.Disable then
+                v:Disable()
+            elseif v.Disconnect then
+                v:Disconnect()
+            end
+        end
+    end
+
+	
+    player.Idled:Connect(function()
+        VirtualUser:CaptureController()
+        VirtualUser:ClickButton2(Vector2.new())
+    end)
+
+    task.spawn(function()
+        while task.wait(120) do
+            VirtualUser:CaptureController()
+            VirtualUser:ClickButton2(Vector2.new())
+        end
+    end)
+
+end)
+
+if isfile("PS99Halloween.json") then
+    Settings = readfile("PS99Halloween.json")
+    if Settings then
+        for setting, value in pairs(game:GetService("HttpService"):JSONDecode(Settings)) do
+            print("Loading setting:", setting, value)
+            if setting == "AutoDoors" then
+				AutoDoors = value
+				AutoDoorsToggle:Set(AutoDoors)
+			elseif setting == "DoorsToOpen" then
+				DoorsToOpen = value
+				Dropdown1:Set(DoorsToOpen)
+			elseif setting == "AutoCollect" then
+				AutoCollect = value
+				AutoCollectToggle:Set(AutoCollect)
+			elseif setting == "Craft" then
+				Craft = value
+				AutoCraftToggle:Set(AutoCollect)
+			elseif setting == "CraftToMake" then
+				CraftToMake = value
+				Dropdown2:Set(CraftToMake)
+			elseif setting == "EquipBestPets" then
+				EquipBestPets = value
+				AuEquipedToggle:Set(EquipBestPets)
+			elseif setting == "AutoHatch1" then
+				AutoHatch1 = value
+				AutoHatch1xAuto:Set(AutoHatch1)
+			elseif setting == "AutoHatchAll" then
+				AutoHatchAll = value
+				AutoHatch10xAuto:Set(AutoHatchAll)
+			elseif setting == "EggsToHatch" then
+				EggsToHatch = value
+				Dropdown3:Set(EggsToHatch)
+			end
+        end
+    end
+end
+
+loadstring(game:HttpGet("https://raw.githubusercontent.com/Paule1248/Open-Source/refs/heads/main/HalloweenQueueUI"))()
