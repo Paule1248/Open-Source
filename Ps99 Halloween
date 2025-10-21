@@ -423,7 +423,7 @@ if isfile("PS99Halloween.json") then
 				AutoCollectToggle:Set(AutoCollect)
 			elseif setting == "Craft" then
 				Craft = value
-				AutoCraftToggle:Set(AutoCollect)
+				AutoCraftToggle:Set(value)
 			elseif setting == "CraftToMake" then
 				CraftToMake = value
 				Dropdown2:Set(CraftToMake)
