@@ -1,0 +1,146 @@
+local KaitunLib = {}
+KaitunLib.__index = KaitunLib
+
+local CoreGui = game:GetService("CoreGui")
+local TweenService = game:GetService("TweenService")
+CoreGui = game.Players.LocalPlayer.PlayerGui
+
+local THEME = {
+	Background = Color3.fromRGB(10, 10, 10),
+	TextPrimary = Color3.fromRGB(255, 255, 255),
+	TextSecondary = Color3.fromRGB(180, 180, 180),
+	Accent = Color3.fromRGB(0, 109, 109),
+	FontMain = Enum.Font.GothamBold,
+	FontLight = Enum.Font.GothamMedium,
+}
+
+function KaitunLib.new()
+	local self = setmetatable({}, KaitunLib)
+
+	self.ScreenGui = Instance.new("ScreenGui")
+	self.ScreenGui.Name = "HastyAFK"
+	self.ScreenGui.IgnoreGuiInset = true
+	self.ScreenGui.DisplayOrder = 1000
+
+	if gethui then
+		self.ScreenGui.Parent = gethui()
+	elseif syn and syn.protect_gui then 
+		syn.protect_gui(self.ScreenGui)
+		self.ScreenGui.Parent = CoreGui
+	else
+		self.ScreenGui.Parent = CoreGui
+	end
+
+	self.MainFrame = Instance.new("Frame")
+	self.MainFrame.BackgroundColor3 = THEME.Background
+	self.MainFrame.Size = UDim2.new(1, 0, 1, 0)
+	self.MainFrame.BorderSizePixel = 0
+	self.MainFrame.Parent = self.ScreenGui
+
+	self.Container = Instance.new("Frame")
+	self.Container.Size = UDim2.new(0.5, 0, 0.8, 0)
+	self.Container.Position = UDim2.new(0.5, 0, 0.5, 0)
+	self.Container.AnchorPoint = Vector2.new(0.5, 0.5)
+	self.Container.BackgroundTransparency = 1
+	self.Container.Parent = self.MainFrame
+
+	local layout = Instance.new("UIListLayout")
+	layout.SortOrder = Enum.SortOrder.LayoutOrder
+	layout.Padding = UDim.new(0, 15)
+	layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+	layout.VerticalAlignment = Enum.VerticalAlignment.Center
+	layout.Parent = self.Container
+
+	return self
+end
+
+function KaitunLib:AddHeader(text, subText)
+	local title = Instance.new("TextLabel")
+	title.Text = text:upper()
+	title.Font = Enum.Font.FredokaOne
+	title.TextColor3 = THEME.Accent
+	title.TextSize = 40
+	title.Size = UDim2.new(1, 0, 0, 50)
+	title.BackgroundTransparency = 1
+	title.Parent = self.Container
+
+	if subText then
+		local sub = Instance.new("TextLabel")
+		sub.Text = subText
+		sub.Font = THEME.FontLight
+		sub.TextColor3 = Color3.fromRGB(100, 100, 255)
+		sub.TextSize = 18
+		sub.Size = UDim2.new(1, 0, 0, 20)
+		sub.BackgroundTransparency = 1
+		sub.Parent = self.Container
+	end
+
+	self:AddSeparator()
+end
+
+function KaitunLib:AddBigTimer()
+	local lbl = Instance.new("TextLabel")
+	lbl.Text = "00:00:00"
+	lbl.Font = Enum.Font.FredokaOne
+	lbl.TextColor3 = THEME.TextPrimary
+	lbl.TextSize = 60
+	lbl.Size = UDim2.new(1, 0, 0, 70)
+	lbl.BackgroundTransparency = 1
+	lbl.Parent = self.Container
+	return lbl
+end
+
+function KaitunLib:AddStat(icon, label, initialValue)
+	local frame = Instance.new("Frame")
+	frame.BackgroundTransparency = 1
+	frame.Size = UDim2.new(1, 0, 0, 30)
+	frame.Parent = self.Container
+
+	local txt = Instance.new("TextLabel")
+	txt.BackgroundTransparency = 1
+	txt.Size = UDim2.new(1, 0, 1, 0)
+	txt.Font = THEME.FontMain
+	txt.TextColor3 = THEME.TextPrimary
+	txt.TextSize = 22
+	txt.RichText = true
+	txt.Text = string.format("%s %s: <font color='rgb(180,180,180)'>%s</font>", icon, label, initialValue)
+	txt.Parent = frame
+
+	local statObj = {
+		Label = txt,
+		Prefix = icon .. " " .. label .. ": "
+	}
+
+	function statObj:Update(newValue)
+		self.Label.Text = self.Prefix .. "<font color='rgb(200,200,200)'>" .. tostring(newValue) .. "</font>"
+	end
+
+	return statObj
+end
+
+function KaitunLib:AddSeparator()
+	local line = Instance.new("Frame")
+	line.BackgroundColor3 = THEME.Accent
+	line.BorderSizePixel = 0
+	line.Size = UDim2.new(0.6, 0, 0, 2)
+	line.Parent = self.Container
+end
+
+function KaitunLib:AddLogo(id, side)
+	local img = Instance.new("ImageLabel")
+	img.Image = id
+	img.BackgroundTransparency = 1
+	img.Size = UDim2.new(0, 80, 0, 80)
+	img.ScaleType = Enum.ScaleType.Fit
+	img.Parent = self.MainFrame 
+
+	if side == "Right" then
+		img.AnchorPoint = Vector2.new(1, 0)
+		img.Position = UDim2.new(1, -30, 0, 30)
+	else
+		img.AnchorPoint = Vector2.new(0, 0)
+		img.Position = UDim2.new(0, 30, 0, 30)
+	end
+end
+
+return KaitunLib
