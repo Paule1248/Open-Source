@@ -112,7 +112,9 @@ function KaitunLib:AddStat(icon, label, initialValue)
 	}
 
 	function statObj:Update(newValue)
-		self.Label.Text = self.Prefix .. "<font color='rgb(200,200,200)'>" .. tostring(newValue) .. "</font>"
+		task.defer(function() 
+        	self.Label.Text = self.Prefix .. "<font color='rgb(200,200,200)'>" .. tostring(newValue) .. "</font>"
+    	end)
 	end
 
 	return statObj
