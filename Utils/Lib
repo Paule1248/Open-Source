@@ -37,7 +37,7 @@ function KaitunLib.new()
 	self.MainFrame.BorderSizePixel = 0
 	self.MainFrame.Parent = self.ScreenGui
 
-	self.MainFrame.Transparency = 0.75
+	self.MainFrame.Transparency = 0.25
 
 	self.Container = Instance.new("Frame")
 	self.Container.Size = UDim2.new(0.5, 0, 0.8, 0)
