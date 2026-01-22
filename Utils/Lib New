@@ -1,5 +1,6 @@
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
+local CoreGui = game:GetService("CoreGui")
 
 local Library = {}
 Library.__index = Library
@@ -80,7 +81,14 @@ function Library:CreateWindow(TitleText: string)
 
 	local Hasty = Instance.new("ScreenGui")
 	Hasty.Name = "HastyLib"
-	Hasty.Parent = game.Players.LocalPlayer:WaitForChild("PlayerGui")
+	if gethui then
+		self.ScreenGui.Parent = gethui()
+	elseif syn and syn.protect_gui then 
+		syn.protect_gui(self.ScreenGui)
+		self.ScreenGui.Parent = CoreGui
+	else
+		self.ScreenGui.Parent = CoreGui
+	end
 	Hasty.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 	Hasty.IgnoreGuiInset = true
 	Hasty.ResetOnSpawn = false
