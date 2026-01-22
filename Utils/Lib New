@@ -81,7 +81,7 @@ function Library:CreateWindow(TitleText: string)
 
 	local Hasty = Instance.new("ScreenGui")
 	Hasty.Name = "HastyLib"
-	if gethui then
+	if gethui and type(gethui()) == "Instance" then
 		self.ScreenGui.Parent = gethui()
 	elseif syn and syn.protect_gui then 
 		syn.protect_gui(self.ScreenGui)
