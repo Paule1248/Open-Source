@@ -81,21 +81,21 @@ function Library:CreateWindow(TitleText: string)
 
 	local Hasty = Instance.new("ScreenGui")
 	Hasty.Name = "HastyLib"
-	
+
 	if typeof(gethui) == "function" then
 	    local ok, hui = pcall(gethui)
 	    if ok and typeof(hui) == "Instance" then
-	        self.ScreenGui.Parent = hui
+	        Hasty.Parent = hui
 	    else
-	        self.ScreenGui.Parent = CoreGui
+	        Hasty.Parent = CoreGui
 	    end
 
 	elseif syn and typeof(syn.protect_gui) == "function" then
-	    syn.protect_gui(self.ScreenGui)
-	    self.ScreenGui.Parent = CoreGui
+	    syn.protect_gui(Hasty)
+	    Hasty.Parent = CoreGui
 
 	else
-	    self.ScreenGui.Parent = CoreGui
+	    Hasty.Parent = CoreGui
 	end
 
 	Hasty.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
