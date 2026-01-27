@@ -85,7 +85,15 @@ function Library:CreateWindow(TitleText: string)
 	if typeof(gethui) == "function" then
 	    local ok, hui = pcall(gethui)
 	    if ok and typeof(hui) == "Instance" then
-	        Hasty.Parent = hui
+	        local success, err = pcall(function()
+			    Hasty.Parent = hui
+			end)
+
+			if not success then
+			    warn(err)
+				Hasty.Parent = CoreGui
+			end
+
 	    else
 	        Hasty.Parent = CoreGui
 	    end
