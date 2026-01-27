@@ -1,0 +1,82 @@
+local VariablesManager = {}
+VariablesManager.__index = VariablesManager
+
+local getType = (typeof or type)
+local next = next
+
+function VariablesManager.new()
+    return setmetatable({
+        _v = {},
+        _t = {},
+        _c = {},
+        _ro = {}
+    }, VariablesManager)
+end
+
+function VariablesManager:Add(name, value, expectedType, isReadOnly)
+    if self._v[name] ~= nil then
+        return false, "Variable already exists"
+    end
+
+    self._v[name] = value
+    self._t[name] = expectedType or getType(value)
+
+    if isReadOnly then
+        self._ro[name] = true
+    end
+
+    return true
+end
+
+function VariablesManager:Set(name, value)
+    local varType = self._t[name]
+    if not varType then
+        return false, "Variable is not defined"
+    end
+
+    if self._ro[name] then
+        return false, "Variable is read-only"
+    end
+
+    local incomingType = getType(value)
+    if incomingType ~= varType then
+        return false, string.format(
+            "Type error: expected %s, got %s",
+            varType,
+            incomingType
+        )
+    end
+
+    local oldValue = self._v[name]
+
+    if oldValue ~= value then
+        self._v[name] = value
+
+        local callback = self._c[name]
+        if callback then
+            callback(value, oldValue)
+        end
+    end
+
+    return true
+end
+
+function VariablesManager:Increment(name, amount)
+    if self._t[name] == "number" then
+        return self:Set(name, (self._v[name] or 0) + (amount or 1))
+    end
+
+    return false, "Variable is not a number"
+end
+
+function VariablesManager:Get(name)
+    return self._v[name]
+end
+
+function VariablesManager:OnChange(name, callback)
+    if self._v[name] ~= nil then
+        self._c[name] = callback
+    end
+end
+
+return VariablesManager
