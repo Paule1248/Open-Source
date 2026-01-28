@@ -67,12 +67,12 @@ function Utils:dump(value, seen)
         local out = {}
         for k, v in pairs(value) do
             local key = typeof(k) == "table" and "[TABLE_KEY]" or tostring(k)
-            out[key] = dump(v, seen)
+            out[key] = Utils:dump(v, seen)
         end
 
         local mt = getmetatable(value)
         if mt then
-            out.__metatable = dump(mt, seen)
+            out.__metatable = Utils:dump(mt, seen)
         end
 
         return out
@@ -124,7 +124,7 @@ function Utils:prettyEncode(value, level)
     local t = typeof(value)
 
     if t == "table" then
-        local array = isArray(value)
+        local array = Utils:isArray(value)
         local open = array and "[" or "{"
         local close = array and "]" or "}"
         local parts = {}
@@ -137,7 +137,7 @@ function Utils:prettyEncode(value, level)
 
             table.insert(
                 parts,
-                spacing .. "  " .. key .. prettyEncode(v, level + 1)
+                spacing .. "  " .. key .. Utils:prettyEncode(v, level + 1)
             )
         end
 
@@ -156,13 +156,13 @@ end
 
 function Utils:DeepCopy(orig: table, pretty: boolean)
     if type(orig) ~= "table" then return orig end
-    local dumped = dump(
-        game.ReplicatedStorage.Events.RetrievePlayerStats:InvokeServer()
+    local dumped = Utils:dump(
+        orig
     )
 
     local json
     if pretty then
-        json = prettyEncode(dumped)
+        json = Utils:prettyEncode(dumped)
     else
         json = HttpService:JSONEncode(dumped)
     end
