@@ -6,18 +6,29 @@ local Library = {}
 Library.__index = Library
 
 local function MakeDraggable(topbarobject, object)
-	local Dragging = nil
-	local DragInput = nil
-	local DragStart = nil
-	local StartPosition = nil
+	local Dragging = false
+	local DragInput
+	local DragStart
+	local StartPosition
 
 	local function Update(input)
+		if not (DragStart and StartPosition) then
+			return
+		end
+
 		local Delta = input.Position - DragStart
-		object.Position = UDim2.new(StartPosition.X.Scale, StartPosition.X.Offset + Delta.X, StartPosition.Y.Scale, StartPosition.Y.Offset + Delta.Y)
+		object.Position = UDim2.new(
+			StartPosition.X.Scale,
+			StartPosition.X.Offset + Delta.X,
+			StartPosition.Y.Scale,
+			StartPosition.Y.Offset + Delta.Y
+		)
 	end
 
 	topbarobject.InputBegan:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+		if input.UserInputType == Enum.UserInputType.MouseButton1
+			or input.UserInputType == Enum.UserInputType.Touch then
+
 			Dragging = true
 			DragStart = input.Position
 			StartPosition = object.Position
@@ -25,19 +36,23 @@ local function MakeDraggable(topbarobject, object)
 			input.Changed:Connect(function()
 				if input.UserInputState == Enum.UserInputState.End then
 					Dragging = false
+					DragInput = nil
 				end
 			end)
 		end
 	end)
 
 	topbarobject.InputChanged:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+		if Dragging and (
+			input.UserInputType == Enum.UserInputType.MouseMovement
+			or input.UserInputType == Enum.UserInputType.Touch
+		) then
 			DragInput = input
 		end
 	end)
 
 	UserInputService.InputChanged:Connect(function(input)
-		if input == DragInput and Dragging then
+		if Dragging and input == DragInput then
 			Update(input)
 		end
 	end)
