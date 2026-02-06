@@ -1,0 +1,1143 @@
+---@diagnostic disable: undefined-global
+
+local Workspace = game:GetService("Workspace")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+
+
+local all_Pets = {}
+local Huges_Hatched = {}
+local All_Pets_Inventory = {}
+local AllGameAreas = {}
+local AdornedBoxes = {}
+local UsedPets = {}
+local UsedBreakables = {}
+local activeBreakablesCount = 0
+
+
+local ServerCoins  = {}
+
+
+local player = Players.LocalPlayer
+local PlayerGui = player:WaitForChild("PlayerGui")
+local PlayerScripts = player:WaitForChild("PlayerScripts")
+local Character = player.Character or player.CharacterAdded:Wait()
+local HumanoidRootPart = Character:WaitForChild("HumanoidRootPart")
+
+local Safe_Part = Instance.new("Part")
+Safe_Part.Anchored = true
+Safe_Part.Size = Vector3.new(10,1,10)
+Safe_Part.Parent = Workspace
+
+Safe_Part.CFrame = HumanoidRootPart.CFrame - Vector3.new(0,5,0)
+
+
+local MAX_BREAKABLES = 8
+local RANGE = 500
+local AutoFarmBreakables = false
+
+local Auto_Teleport = false
+local Teleportable_Breakables = {}
+
+local Send_Webhook = false
+local WebhookURL = ""
+local UserID = 0
+local AutoLoad = false
+
+local __MAP = Workspace:WaitForChild("__MAP")
+
+
+local All_Eggs_Available = {}
+local All_Giant_Chest = {"Giant Relic Chest"}
+
+local Selected_Egg = nil
+local AutoHatch = false
+local Auto_Convert_Gold = false
+local Auto_Convert_Rainbow = false
+local Auto_Convert_Dark_Matter = false
+
+local Auto_Delete_Rarity = {}
+local AutoDelete = false
+
+local RemoveBreakables = false
+local RemoveUselessStuff = false
+local RemoveMap = false
+local Rendering_Mode = false
+
+local Giant_Chest_Selected = nil
+local Auto_Farm_Giant = false
+
+local Auto_Buy_Gems = false
+local Auto_Progress = false
+
+local Library = require(game:GetService("ReplicatedStorage").Library)
+local Network = Library.Network
+local PetCmds = require(ReplicatedStorage.Library.Client.PetCmds)
+-- local PetNetworking = require(ReplicatedStorage.Library.Client.PetNetworking)
+
+local CoinMutex = Library.Modules.Mutex.new()
+
+
+-- Anti Cheat Bypass / game modification
+hookfunction(debug.getupvalue(Library.Network.Invoke, 1), function(...) return true end)
+hookfunction(debug.getupvalue(Library.Network.Fired, 1), function(...) return true end)
+
+local banSuccess, banError = pcall(function()
+	local Blunder = require(game:GetService("ReplicatedStorage"):WaitForChild("X", 10):WaitForChild("Blunder", 10):WaitForChild("BlunderList", 10))
+	if not Blunder or not Blunder.getAndClear then player:Kick("Error while bypassing the anti-cheat! (Didn't find blunder)") end
+
+	local OldGet = Blunder.getAndClear
+	setreadonly(Blunder, false)
+	local function OutputData(Message)
+	   print("-- PET SIM X BLUNDER --")
+	   print(Message .. "\n")
+	end
+
+	Blunder.getAndClear = function(...)
+	   local Packet = ...
+		for i,v in next, Packet.list do
+		   if v.message ~= "PING" then
+			   OutputData(v.message)
+			   table.remove(Packet.list, i)
+		   end
+	   end
+	   return OldGet(Packet)
+	end
+    
+	setreadonly(Blunder, true)
+end)
+if not banSuccess then
+	player:Kick("Error while bypassing the anti-cheat! (".. banError ..")")
+	return
+end
+for i,v in pairs(getconnections(player.Idled)) do
+	v:Disable()
+end
+
+local Data = Library.Save.Get()
+local GamepassService = Library.Gamepasses
+local Pets_Directory = Library.Directory.Pets
+local Egg_Directory = Library.Directory.Eggs
+
+local Coin_Directory = Library.Directory.Coins
+
+_G.Library = Library
+
+for Name, coin in pairs(Coin_Directory) do
+    if Name:find("Giant") and Name:find("Chest") then
+        table.insert(All_Giant_Chest, Name)
+    end
+end
+
+for egg, Egg_data in pairs(Egg_Directory) do
+    table.insert(All_Eggs_Available, egg)
+end
+
+local function isHugePet(petId)
+    if string.find(petId, "Huge") then
+        return true
+    end
+
+    return false
+end
+
+function SendMessageWithEmbed(url, userId, embed)
+    local http = game:GetService("HttpService")
+    local headers = {
+        ["Content-Type"] = "application/json"
+    }
+    local data = {
+        ["embeds"] = {
+            {
+                ["title"] = embed.title,
+                ["description"] = embed.description,
+                ["color"] = embed.color,
+                ["fields"] = embed.fields,
+                ["footer"] = {
+                    ["text"] = embed.footer.text
+                }
+            }
+        }
+    }
+    local body = http:JSONEncode(data)
+    local response = request({
+        Url = url,
+        Method = "POST",
+        Headers = headers,
+        Body = body
+    })
+    print("Sent")
+end
+
+
+
+for _, pet in pairs(Data.Pets) do
+    if pet.id and isHugePet(pet.id) then
+        table.insert(All_Pets_Inventory, pet.uid)
+    end
+end
+
+
+local scripts = PlayerScripts:FindFirstChild("Scripts")
+-- local gameFolder = scripts and scripts:FindFirstChild("Game") and scripts.Game.Main.Eggs
+
+-- if gameFolder then
+-- 	local eggFrontend = gameFolder:FindFirstChild("Egg Opening Frontend")
+-- 	if eggFrontend then
+-- 		eggFrontend:Destroy()
+-- 	end
+-- end
+
+-- if gameFolder then
+-- 	local eggFrontend = gameFolder:FindFirstChild("Egg Opening Frontend")
+-- 	if eggFrontend then
+-- 		eggFrontend:Destroy()
+-- 	end
+-- end
+
+
+
+for name, area in pairs(Library.Directory.Areas) do
+	local world = Library.Directory.Worlds[area.world]
+	if world and world.worldOrder and world.worldOrder > 0 then
+		if not area.hidden and not area.isVIP then
+			local containsArea = false
+			if world.spawns then
+				for i,v in pairs(world.spawns) do
+					if v.settings and v.settings.area and v.settings.area == name then 
+						containsArea = true 
+						break 
+					end
+				end
+			end
+			
+			if area.gate or containsArea then
+				table.insert(AllGameAreas, name)
+			end
+		end
+	end
+end
+
+
+table.sort(AllGameAreas, function(a, b)
+	local areaA = Library.Directory.Areas[a]
+	local areaB = Library.Directory.Areas[b]
+	local worldA = Library.Directory.Worlds[areaA.world]
+	if a == "Ice Tech" then 
+		worldA = Library.Directory.Worlds["Fantasy"]
+	end
+	
+	local worldB = Library.Directory.Worlds[areaB.world]
+	if b == "Ice Tech" then 
+		worldB = Library.Directory.Worlds["Fantasy"]
+	end
+	if worldA.worldOrder ~= worldB.worldOrder then
+		return worldA.worldOrder < worldB.worldOrder
+	end
+	
+	local currencyA = Library.Directory.Currency[worldA.mainCurrency]
+	local currencyB = Library.Directory.Currency[worldB.mainCurrency]
+	if currencyA.order ~= currencyB.order then
+		return currencyA.order < currencyB.order
+	end
+	
+	if not areaA.gate or not areaB.gate then
+		return areaA.id < areaB.id
+	end
+	
+	return areaA.gate.cost < areaB.gate.cost
+end)
+
+
+
+
+
+
+local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+
+local Window = Rayfield:CreateWindow({
+   Name = "Pet Simulator X Overhauled",
+   Icon = 0,
+   LoadingTitle = "Pet Simulator X Overhauled",
+   LoadingSubtitle = "by Paule",
+   ShowText = "Rayfield",
+   Theme = "Ocean",
+
+})
+
+local Hatching_Tab = Window:CreateTab("Hatching", "egg")
+local Pet_Tab = Window:CreateTab("Pet", "cat")
+local autoFarmTab = Window:CreateTab("Auto Farm", "egg")
+
+
+local Egg_Selection = Hatching_Tab:CreateDropdown({
+   Name = "Select Egg",
+   Options = All_Eggs_Available,
+   CurrentOption = {},
+   MultipleOptions = false,
+   Flag = "EggSelection",
+   Callback = function(Options)
+        for _, Option in pairs(Options) do
+            print("Selected Egg: " .. Option)
+            Selected_Egg = Option
+        end
+   end,
+})
+
+
+local AutoHatchToggle = Hatching_Tab:CreateToggle({
+    Name = "Start Hatching",
+    CurrentValue = false,
+    Flag = "HatchToggle",
+    Callback = function(Value)
+        AutoHatch = Value
+
+        task.spawn(function()
+            while AutoHatch do
+                task.wait(0.2)
+
+                if not Selected_Egg then continue end
+                task.spawn(function()
+                    local Data = Library.Save.Get()
+                    if Data and  Selected_Egg then
+                        -- Network.Invoke("Buy Egg", Selected_Egg, Data.EggSlots)
+                        -- Network.Invoke("Buy Egg", Selected_Egg, false,false)
+                        -- Network.Invoke("Buy Egg", Selected_Egg, true,false)
+                        -- Network.Invoke("Buy Egg", Selected_Egg, false,true)
+                        Network.Invoke("Buy Egg", Selected_Egg, table.find(Data.OwnGamepass, "Triple Egg Open") or false)
+                    else
+                        print("No egg selected or egg slots not available.")
+                    end
+                end)
+            end
+        end)
+    end,
+})
+local Section = Hatching_Tab:CreateSection("Huge Webhook Notifications")
+local WebhookURLINPUT = Hatching_Tab:CreateInput({
+   Name = "Input Webhook URL",
+   CurrentValue = "",
+   PlaceholderText = "Input Placeholder",
+   RemoveTextAfterFocusLost = false,
+   Flag = "WebhookInputURL",
+   Callback = function(Text)
+        WebhookURL = Text
+   end,
+})
+
+local WEBhookUSERIDInput = Hatching_Tab:CreateInput({
+   Name = "Discord UserID",
+   CurrentValue = "",
+   PlaceholderText = "",
+   RemoveTextAfterFocusLost = false,
+   Flag = "WebhookInputUserID",
+   Callback = function(Text)
+        UserID = Text
+   end,
+})
+
+local function formatNumber(n)
+    local absN = math.abs(n)
+    if absN >= 1e9 then
+        return string.format("%.2fB", n / 1e9)
+    elseif absN >= 1e6 then
+        return string.format("%.2fM", n / 1e6)
+    elseif absN >= 1e3 then
+        return string.format("%.2fK", n / 1e3)
+    else
+        return tostring(n)
+    end
+end
+
+
+local SendWEbhooktoogle = Hatching_Tab:CreateToggle({
+    Name = "Send Huge Pet Notifications",
+    CurrentValue = false,
+    Flag = "WebhookToggle",
+    Callback = function(Value)
+        Send_Webhook = Value
+        if Send_Webhook then
+            task.spawn(function()
+                while Send_Webhook do
+                    task.wait(1)
+                    Data = Library.Save.Get()
+                    for _, pet in pairs(Data.Pets) do
+                        if pet["id"] and isHugePet(pet["id"]) and not table.find(All_Pets_Inventory, pet.uid) then
+                            table.insert(Huges_Hatched, pet.uid)
+                            table.insert(All_Pets_Inventory, pet.uid)
+                            local baseName = Pets_Directory[pet.id].name or "Unknown Pet"
+                            local variants = {}
+                            if pet.g then table.insert(variants, "Golden") end
+                            if pet.r then table.insert(variants, "Rainbow") end
+                            if pet.dm then table.insert(variants, "Dark Matter") end
+                            if pet.hc then table.insert(variants, "Hardcore") end
+
+                            local variantStr = (#variants > 0) and (table.concat(variants, " ") .. " ") or ""
+                            local petName = variantStr .. baseName
+
+
+                            local message = string.format("Huge Pet Hatched: %s", petName)
+
+                            if WebhookURL ~= "" then
+
+                                local embed = {
+                                    title = "Huge Pet Hatched",
+                                    description = message,
+                                    color = 8388736,
+                                    fields = {
+                                        {
+                                                name = "Username",
+                                                value = player.Name
+                                        },
+                                        {
+                                                name = "Total Eggs Hatched",
+                                                value = tostring(formatNumber(Data.EggsOpened[Selected_Egg] or 0)),
+                                        },
+                                        {
+                                                name = "Total Huges Hatched",
+                                                value = tostring(#Huges_Hatched) or 0
+                                        },
+                                        {
+                                                name = "Total Huges",
+                                                value = #All_Pets_Inventory or 0
+                                        },
+                                        {
+                                                name = "Diamonds",
+                                                value = tostring(formatNumber(Data.Diamonds) or 0)
+                                        }
+                                    },
+                                    footer = {
+                                        text = "Pet Simulator X Overhauled"
+                                    }
+                                }
+                                SendMessageWithEmbed(WebhookURL,UserID,embed)
+                            end
+                        end
+                    end
+                end
+            end)
+        end
+    end,
+})
+
+
+local AutoConverGoldToggle = Pet_Tab:CreateToggle({
+    Name = "Auto Make Gold",
+    CurrentValue = false,
+    Flag = "AutoConvertGold",
+    Callback = function(Value)
+        Data = Library.Save.Get()
+        Auto_Convert_Gold = Value
+        if Auto_Convert_Gold and Data then
+            task.spawn(function()
+                while Auto_Convert_Gold do
+                    Data = Library.Save.Get()
+                    task.wait()
+                    local normalPetsById = {}
+                    for _, pet in pairs(Data.Pets) do
+                        if not pet.r and not pet.g and not pet.dm and not isHugePet(pet.id) then
+                            normalPetsById[pet.id] = normalPetsById[pet.id] or {}
+                            table.insert(normalPetsById[pet.id], pet)
+                        end
+                    end
+                    for petId, pets in pairs(normalPetsById) do
+                        while #pets >= 8 do
+                            local petsToConvert = {}
+                            for i = 1, 8 do
+                                table.insert(petsToConvert, pets[i].uid)
+                            end
+                            Network.Invoke("Use Golden Machine", petsToConvert)
+                            for _, petUid in ipairs(petsToConvert) do
+                                for _, pet in ipairs(pets) do
+                                    if pet.uid == petUid then
+                                        break
+                                    end
+                                end
+                            end
+                            for i = 8, 1, -1 do
+                                table.remove(pets, i)
+                            end
+                            task.wait(1)
+                        end
+                    end
+                    task.wait()
+                end
+            end)
+        end
+    end,
+})
+
+local ToggleRainbow = Pet_Tab:CreateToggle({
+    Name = "Auto Make Rainbow",
+    CurrentValue = false,
+    Flag = "AutoConvertRainbow",
+    Callback = function(Value)
+        Data = Library.Save.Get()
+        Auto_Convert_Rainbow = Value
+        if Auto_Convert_Rainbow and Data then
+            task.spawn(function()
+                while Auto_Convert_Rainbow do
+                    Data = Library.Save.Get()
+                    task.wait()
+                    local goldPetsById = {}
+                    for _, pet in pairs(Data.Pets) do
+                        if pet.g and not pet.r and not pet.dm and not isHugePet(pet.id) then
+                            goldPetsById[pet.id] = goldPetsById[pet.id] or {}
+                            table.insert(goldPetsById[pet.id], pet)
+                        end
+                    end
+                    for petId, pets in pairs(goldPetsById) do
+                        while #pets >= 8 do
+                            local petsToConvert = {}
+                            for i = 1, 8 do
+                                table.insert(petsToConvert, pets[i].uid)
+                            end
+                            Network.Invoke("Use Rainbow Machine", petsToConvert)
+                            print("Bereit zum Rainbow machen:", petId, petsToConvert)
+                            for _, petUid in ipairs(petsToConvert) do
+                                for _, pet in ipairs(pets) do
+                                    if pet.uid == petUid then
+                                        break
+                                    end
+                                end
+                            end
+                            for i = 8, 1, -1 do
+                                table.remove(pets, i)
+                            end
+                            task.wait(1)
+                        end
+                    end
+                    task.wait()
+                end
+            end)
+        end
+    end,
+})
+
+local ToggleDarkMatter = Pet_Tab:CreateToggle({
+    Name = "Auto Make Dark Matter",
+    CurrentValue = false,
+    Flag = "",
+    Callback = function(Value)
+        Data = Library.Save.Get()
+        Auto_Convert_Dark_Matter = Value
+        if Auto_Convert_Dark_Matter and Data then
+            task.spawn(function()
+                while Auto_Convert_Dark_Matter do
+                    Data = Library.Save.Get()
+                    task.wait()
+                    local rainbowPetsById = {}
+                    for _, pet in pairs(Data.Pets) do
+                        if pet.r and not pet.dm and not pet.g then
+                            rainbowPetsById[pet.id] = rainbowPetsById[pet.id] or {}
+                            table.insert(rainbowPetsById[pet.id], pet)
+                        end
+                    end
+                    for petId, pets in pairs(rainbowPetsById) do
+                        while #pets >= 1 do
+                            local petsToConvert = {}
+                            for i = 1, 1 do
+                                table.insert(petsToConvert, pets[i].uid)
+                            end
+                            Network.Invoke("Dark Matter Machine: Use", petsToConvert)
+                            for _, petUid in ipairs(petsToConvert) do
+                                for _, pet in ipairs(pets) do
+                                    if pet.uid == petUid then
+                                        break
+                                    end
+                                end
+                            end
+                            for i = 1, 1, -1 do
+                                table.remove(pets, i)
+                            end
+                            task.wait(1)
+                        end
+                    end
+                    task.wait()
+                end
+            end)
+        end
+    end,
+})
+
+local Section = Pet_Tab:CreateSection("Better Auto Delete")
+
+
+
+local AutoDeleteSelection = Pet_Tab:CreateDropdown({
+   Name = "Auto Delete Rarity",
+   Options = {"Basic", "Epic", "Rare", "Legendary", "Event"},
+   CurrentOption = {},
+   MultipleOptions = true,
+   Flag = "AutoDeleteRarity",
+   Callback = function(Options)
+        Auto_Delete_Rarity = {}
+        for _, Option in pairs(Options) do
+            table.insert(Auto_Delete_Rarity, Option)
+        end
+    end
+})
+
+local AutoDeletePEtstoggle = Pet_Tab:CreateToggle({
+    Name = "Auto Delete Pets",
+    CurrentValue = false,
+    Flag = "AutoDeletePEtstoggle",
+    Callback = function(Value)
+        AutoDelete = Value
+        if AutoDelete then
+            task.spawn(function()
+                while AutoDelete do
+                    task.wait(0.1)
+                    local pets_to_delete = {}
+                    local Data = Library.Save.Get()
+
+                    for _, petData in pairs(Data.Pets) do
+                        local petInfo = Pets_Directory[petData.id]
+                        if not petInfo then continue end
+
+                        local rarity = petInfo.rarity
+                        local isHuge = isHugePet(petData.id)
+                        local isEvent = rarity == "Event"
+                        local isRainbow = petData.r
+                        local isDarkMatter = petData.dm
+
+                        if isHuge then continue end
+
+                        if isEvent and (isRainbow or isDarkMatter) then
+                            continue
+                        end
+
+                        if table.find(Auto_Delete_Rarity, rarity) then
+                            table.insert(pets_to_delete, petData.uid)
+                        end
+                    end
+
+                    if #pets_to_delete > 0 then
+                        Network.Invoke("Delete Several Pets", pets_to_delete)
+                    end
+                end
+            end)
+        end
+    end
+})
+
+-- Farming Orbs
+task.spawn(function()
+    while task.wait(1) do
+        local OrbsToCollect = {}
+        for _, orb in pairs(Library.Things:FindFirstChild("Orbs"):GetChildren()) do
+            if orb then
+                table.insert(OrbsToCollect, orb.Name)
+                Library.Network.Fire("Claim Orbs", {orb.Name})
+            end
+        end
+    end
+end)
+
+-- Utils
+
+
+local function isInRange(vec3)
+	return (vec3 - HumanoidRootPart.Position).Magnitude <= RANGE
+end
+
+local function markPetsInUse(pets)
+	for _, pet in ipairs(pets) do
+		UsedPets[pet] = true
+	end
+end
+
+local function unmarkPets(pets)
+	for _, pet in ipairs(pets) do
+		UsedPets[pet] = nil
+	end
+end
+
+local function markBreakableInUse(breakable)
+	if breakable then
+		UsedBreakables[breakable] = true
+	end
+end
+
+local function unmarkBreakable(breakable)
+	if breakable then
+		UsedBreakables[breakable] = nil
+	end
+end
+
+local function highlightBreakable(id, position)
+	if not RemoveBreakables or AdornedBoxes[id] then return end
+
+	local boxPart = Instance.new("Part")
+	boxPart.Anchored = true
+	boxPart.CanCollide = false
+	boxPart.Transparency = 1
+	boxPart.Size = Vector3.new(2, 2, 2)
+	boxPart.CFrame = CFrame.new(position)
+	boxPart.Name = "DebugBox_" .. id
+	boxPart.Parent = workspace
+
+	local adorn = Instance.new("BoxHandleAdornment")
+	adorn.Adornee = boxPart
+	adorn.AlwaysOnTop = true
+	adorn.ZIndex = 10
+	adorn.Size = Vector3.new(2.5, 2.5, 2.5)
+	adorn.Color3 = Color3.fromRGB(255, 0, 0)
+	adorn.Transparency = 0.3
+	adorn.Parent = boxPart
+
+	AdornedBoxes[id] = {box = boxPart, adorn = adorn}
+end
+
+local function removeHighlight(id)
+	local boxInfo = AdornedBoxes[id]
+	if boxInfo then
+		boxInfo.box:Destroy()
+		AdornedBoxes[id] = nil
+	end
+end
+
+
+
+local function RemoveCoin(id)
+	assert(typeof(id) == "string")
+	ServerCoins[id] = nil
+end
+
+local function AddCoin(id, data)
+    ServerCoins[id] = data
+end
+
+local function ClearAllCoins()
+	table.clear(ServerCoins)  -- Besser als for-loop
+end
+
+local HttpService = game:GetService("HttpService")
+
+local function LoadAllCoinsInternal(clearBefore)
+	if clearBefore then 
+		ClearAllCoins() 
+	end
+
+	local coins = Library.Network.Invoke("Get Coins")
+	if not coins then
+		return warn("Coins returned as nil")
+	end
+
+    local jsonStr = HttpService:JSONEncode(coins)
+    local sizeKB = #jsonStr / 1024
+
+	local totalCoins = 0
+	
+	for id, data in pairs(coins) do
+		ServerCoins[id] = data
+        totalCoins = totalCoins + 1
+	end
+
+	local toRemove = {}
+	for id in pairs(ServerCoins) do
+		if not coins[id] then
+			table.insert(toRemove, id)
+		end
+	end
+	
+	for _, id in ipairs(toRemove) do
+		ServerCoins[id] = nil
+	end
+	
+	
+	table.clear(coins)
+	coins = nil
+end
+
+Library.Network.Fired("Remove Coin"):Connect(function(id) 
+	RemoveCoin(id) 
+end)
+
+Library.Network.Fired("Add Coin"):Connect(function(id, data) 
+	AddCoin(id, data) 
+end)
+
+task.spawn(function()
+    while true do
+        LoadAllCoinsInternal(true)
+        task.wait(1)
+    end
+end)
+
+task.spawn(function()
+    while true do
+        task.wait(30)
+        collectgarbage(tostring("count"))
+        gcinfo()
+    end
+end)
+
+
+task.spawn(function()
+    -- UI: Sliders and Toggle
+local MaxBreakablesSlider = autoFarmTab:CreateSlider({
+	Name = "Max Breakables",
+	Range = {0, 15},
+	Increment = 1,
+	Suffix = "Breakables",
+	CurrentValue = MAX_BREAKABLES,
+	Flag = "MaxBreakablesSlider",
+	Callback = function(Value)
+		MAX_BREAKABLES = Value
+	end,
+})
+
+local SliderRange = autoFarmTab:CreateSlider({
+	Name = "Range",
+	Range = {0, 800},
+	Increment = 10,
+	Suffix = "Studs",
+	CurrentValue = RANGE,
+	Flag = "RangeSlider",
+	Callback = function(Value)
+		RANGE = Value
+	end,
+})
+
+end)
+
+local BreakablesFolder = {}
+
+
+task.wait(0.5)
+
+local equippedPets = {}
+local validTargets = {}
+
+local function clear(t)
+	table.clear(t)
+end
+
+local AutoFarmBreakablesToggle = autoFarmTab:CreateToggle({
+	Name = "Auto Farm Breakables",
+	CurrentValue = false,
+	Flag = "AutoFarmBreakables",
+	Callback = function(Value)
+		AutoFarmBreakables = Value
+		if AutoFarmBreakables then
+            task.spawn(function()
+                
+                local FarmOnlyDiamonds = false 
+                
+                while AutoFarmBreakables do
+                    if not player.Character or not player.Character:FindFirstChild("HumanoidRootPart") then 
+                        task.wait(0.5) 
+                        continue
+                    end
+                    HumanoidRootPart = player.Character.HumanoidRootPart
+
+                    local equippedPets = {}
+                    for euid, petDta in pairs(PetCmds.GetEquipped()) do
+                        table.insert(equippedPets, petDta.uid)
+                    end
+                    
+                    if #equippedPets > 0 then
+                        local validTargets = {}
+
+                        for id, coin in pairs(ServerCoins) do
+                            if coin.p and (coin.p - HumanoidRootPart.Position).Magnitude <= RANGE then
+                                local isDiamond = false
+                                if coin.n then
+                                    isDiamond = coin.n:lower():find("diamond") ~= nil
+                                end
+                                
+                                if not FarmOnlyDiamonds or isDiamond then                                    
+                                    table.insert(validTargets, {
+                                        id = id, 
+                                        p = coin.p, 
+                                        distance = (coin.p - HumanoidRootPart.Position).Magnitude
+                                    })
+                                end
+                            end
+                        end
+
+
+                        table.sort(validTargets, function(a, b)
+                            return a.distance < b.distance
+                        end)
+                        
+                        if #validTargets == 0 then
+                            for id, coin in pairs(ServerCoins) do
+                                if coin.p and (coin.p - HumanoidRootPart.Position).Magnitude <= RANGE then
+                                    table.insert(validTargets, {id = id, p = coin.p})
+                                end
+                            end
+                        
+                            table.sort(validTargets, function(a, b)
+                                return (a.p - HumanoidRootPart.Position).Magnitude < (b.p - HumanoidRootPart.Position).Magnitude
+                            end)
+                        end
+                        local targetLimit = math.min(#validTargets, MAX_BREAKABLES)
+                        if targetLimit > 0 then
+                            for i, petUID in ipairs(equippedPets) do
+                                if validTargets[((i - 1) % targetLimit) + 1] then
+                                    task.spawn(function()
+                                        Network.Invoke("Join Coin", validTargets[((i - 1) % targetLimit) + 1].id, {petUID})
+                                        Network.Fire("Farm Coin", validTargets[((i - 1) % targetLimit) + 1].id, petUID)
+                                    end)
+                                end
+                            end
+                        end
+                    end
+                    
+
+                    task.wait()
+                    validTargets = {}
+                end
+            end)
+		end
+	end,
+})
+
+
+local Section = autoFarmTab:CreateSection("Auto Farm Giant Chest")
+
+local Giant_Chest_Select = autoFarmTab:CreateDropdown({
+   Name = "Select Giant Chest",
+   Options = All_Giant_Chest,
+   CurrentOption = {},
+   MultipleOptions = false,
+   Flag = "Dropdown1",
+   Callback = function(Options)
+        Giant_Chest_Selected = nil
+        for _, Option in pairs(Options) do
+            Giant_Chest_Selected = Option
+            print(Giant_Chest_Selected, Option)
+        end
+   end,
+})
+
+local Auto_Farm_Chest_Toggle = autoFarmTab:CreateToggle({
+   Name = "Auto Farm Giant",
+   CurrentValue = false,
+   Flag = "Toggle1",
+   Callback = function(Value)
+        Auto_Farm_Giant = Value
+        print(Auto_Farm_Giant, Giant_Chest_Selected)
+        if Auto_Farm_Giant and Giant_Chest_Selected ~= nil then
+            task.spawn(function()
+                while Auto_Farm_Giant do
+                    task.wait()
+					
+					local all_Pets = {}
+					for _, petData in pairs(require(ReplicatedStorage.Library.Client.PetCmds).GetEquipped()) do
+						table.insert(all_Pets, petData.uid)
+					end
+
+					local targetBreakable = nil
+
+                    for id, coin in pairs(ServerCoins) do
+                        if coin.n == Giant_Chest_Selected then
+                            targetBreakable = coin
+                            Safe_Part.CFrame = CFrame.new(coin.p) - Vector3.new(0,5,0)
+                            HumanoidRootPart.CFrame = CFrame.new(coin.p)
+                            break
+                        end
+                    end
+
+                    if targetBreakable and ServerCoins and ServerCoins[targetBreakable.Name] then
+						local breakableID = targetBreakable.Name
+						Network.Invoke("Join Coin", breakableID, all_Pets)
+						task.wait(0.1)
+						for _, pet in ipairs(all_Pets) do
+							Network.Fire("Change Pet Target", pet, "Coin", breakableID)
+							task.wait()
+							Network.Fire("Farm Coin", breakableID, pet)
+						end
+
+                        while targetBreakable and ServerCoins and ServerCoins[breakableID] do
+                            Network.Invoke("Join Coin", breakableID, all_Pets)
+							task.wait(0.1)
+							for _, pet in ipairs(all_Pets) do
+								Network.Fire("Change Pet Target", pet, "Coin", breakableID)
+								task.wait()
+								Network.Fire("Farm Coin", breakableID, pet)
+							end
+                        end
+					end
+                end
+            end)
+        end
+   end,
+})
+
+
+local Section = autoFarmTab:CreateSection("Auto Teleport")
+local priorityList = {
+	"Diamond Crate",
+	"Diamond Present",
+	"Diamonds",
+    "Chest",
+    "Vault",
+    "Safe",
+    "Crate",
+    "Present",
+}
+
+local Teleportable_Breakables = {}
+
+local Teleportable_Breakables_Dropdown = autoFarmTab:CreateDropdown({
+    Name = "Breakables to Teleport to",
+    Options = priorityList,
+    CurrentOption = {},
+    MultipleOptions = true,
+    Flag = "Dropdown1",
+    Callback = function(Options)
+        Teleportable_Breakables = {}
+        for _, Option in pairs(Options) do
+            table.insert(Teleportable_Breakables, Option)
+        end
+    end,
+})
+
+local AutoTeleportToBreakables = autoFarmTab:CreateToggle({
+    Name = "Auto Teleport",
+    CurrentValue = false,
+    Flag = "Toggle1",
+    Callback = function(Value)
+        Auto_Teleport = Value
+        if not Value then return end
+
+        task.spawn(function()
+            repeat task.wait() until AutoFarmBreakables
+
+            while Auto_Teleport do
+                local teleported = false
+                for _, prioName in ipairs(priorityList) do
+                    if table.find(Teleportable_Breakables, prioName) then
+                        for _, breakable in pairs(ServerCoins) do
+                            local nameAttr = breakable.n
+                            local AreaAttr = breakable.a
+                            if breakable.p
+                                and nameAttr
+                                and table.find(Data["AreasUnlocked"], AreaAttr)
+                                and nameAttr:lower():find(prioName:lower())
+                                and nameAttr ~= "Giant Diamond Chest"
+                                and nameAttr ~= "Giant Tech Chest" then
+
+                                HumanoidRootPart.CFrame = CFrame.new(breakable.p)
+                                Safe_Part.CFrame = CFrame.new(breakable.p) - Vector3.new(0,5.0)
+                                repeat task.wait()
+                                until not ServerCoins[breakable.id] or not isInRange(breakable.p)
+
+                                teleported = true
+                                break
+                            end
+                        end
+                        if teleported then break end
+                    end
+                end
+                task.wait()
+            end
+
+        end)
+    end,
+})
+
+
+local Section = autoFarmTab:CreateSection("Misc")
+
+local Auto_Buy_Gems_Toggle = autoFarmTab:CreateToggle({
+   Name = "Auto Buy Gems (1,25m)",
+   CurrentValue = false,
+   Flag = "Toggle1",
+   Callback = function(Value)
+        Auto_Buy_Gems = Value
+        if Auto_Buy_Gems then
+            task.spawn(function()
+                while Auto_Buy_Gems do
+                    Network.Invoke("Buy Diamonds", 4)
+                    task.wait(1)
+                end
+            end)
+        end
+   end,
+})
+
+
+
+local Tab = Window:CreateTab("Optimizer", "rewind")
+
+Workspace.__THINGS.Coins.ChildAdded:Connect(function(child)
+    if RemoveBreakables then
+        if child:FindFirstChild("Coin") and typeof(child.Coin) == "Instance" then
+            child.Coin.MeshId = 0
+            child.Coin.Size = Vector3.new(1,1,1)
+        end
+    end
+end)
+
+
+local Remove_Breakables = Tab:CreateToggle({
+   Name = "Remove Breakables",
+   CurrentValue = false,
+   Flag = "Toggle1",
+   Callback = function(Value)
+        RemoveBreakables = Value
+        if RemoveBreakables then
+            for _, Coin in Workspace.__THINGS.Coins:GetChildren() do
+                Coin.Coin.MeshId = 0
+                Coin.Coin.Size = Vector3.new(1,1,1)
+            end
+        end
+   end,
+})
+
+
+local Remove_Useless_Stuff = Tab:CreateToggle({
+   Name = "Remove Useless Stuff",
+   CurrentValue = false,
+   Flag = "Toggle1",
+   Callback = function(Value)
+        RemoveUselessStuff = Value
+        if RemoveUselessStuff then
+           if Workspace:FindFirstChild("__DEBRIS") then
+                Workspace:FindFirstChild("__DEBRIS"):Destroy()
+           end
+           if __MAP.Areas:FindFirstChild("ALWAYS RENDERED") then
+                __MAP.Areas:FindFirstChild("ALWAYS RENDERED"):Destroy()
+           end
+        end
+   end,
+})
+
+
+local Remove_Map= Tab:CreateToggle({
+   Name = "Remove Map",
+   CurrentValue = false,
+   Flag = "Toggle1",
+   Callback = function(Value)
+        RemoveMap = Value
+        __MAP = Workspace:WaitForChild("__MAP")
+        if RemoveMap then
+            for _, Area in ipairs(__MAP.Areas:GetChildren()) do
+                for _, AreaElement in ipairs(Area:GetChildren()) do
+                    if AreaElement.Name ~= "Ground" and AreaElement.Name ~= "GROUND" then
+                        AreaElement:Destroy()
+                    end
+                end
+            end
+        end
+   end,
+})
+
+local Remove_Map_All= Tab:CreateToggle({
+   Name = "Remove Map (All)",
+   CurrentValue = false,
+   Flag = "Toggle1",
+   Callback = function(Value)
+        RemoveMapAll = Value
+        __MAP = Workspace:WaitForChild("__MAP")
+        if RemoveMapAll and __MAP then
+            __MAP:Destroy()
+            setfpscap(20)
+        end
+   end,
+})
