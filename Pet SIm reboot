@@ -305,7 +305,8 @@ local AutoHatchToggle = Hatching_Tab:CreateToggle({
                         -- Network.Invoke("Buy Egg", Selected_Egg, false,false)
                         -- Network.Invoke("Buy Egg", Selected_Egg, true,false)
                         -- Network.Invoke("Buy Egg", Selected_Egg, false,true)
-                        Network.Invoke("Buy Egg", Selected_Egg, table.find(Data.OwnGamepass, "Triple Egg Open") or false)
+                        Network.Invoke("Buy Egg", Selected_Egg, table.find(Data.OwnGamepass, "Triple Egg Open") ~= nil)
+
                     else
                         print("No egg selected or egg slots not available.")
                     end
