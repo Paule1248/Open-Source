@@ -130,7 +130,7 @@ game:GetService("Players").LocalPlayer.PlayerScripts.Scripts.Game.Orbs.Disabled 
 game:GetService("Players").LocalPlayer.PlayerScripts.Scripts.Game.Lootbags.Disabled = true
 workspace.__THINGS.Coins:Destroy()
 workspace.__THINGS.Orbs:Destroy()
-workspace.__THINKS.Lootbags:Destroy()
+workspace.__THINGS.Lootbags:Destroy()
 
 
 for Name, coin in pairs(Coin_Directory) do
@@ -344,6 +344,18 @@ local MaxInventoryStop = Hatching_Tab:CreateSlider({
 	Callback = function(Value)
 		pauseHatch = Value
 	end,
+})
+
+local Input = Hatching_Tab:CreateInput({
+   Name = "Pauses when inventory hits",
+   CurrentValue = tostring(pauseHatch),
+   PlaceholderText = tostring(pauseHatch),
+   RemoveTextAfterFocusLost = false,
+   Flag = "Input1",
+   Callback = function(Text)
+        pauseHatch = tonumber(Text)
+        MaxInventoryStop:Set(tonumber(pauseHatch)) 
+   end,
 })
 
 
