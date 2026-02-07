@@ -127,8 +127,10 @@ _G.Library = Library
 
 game:GetService("Players").LocalPlayer.PlayerScripts.Scripts.Game.Coins.Disabled = true
 game:GetService("Players").LocalPlayer.PlayerScripts.Scripts.Game.Orbs.Disabled = true 
+game:GetService("Players").LocalPlayer.PlayerScripts.Scripts.Game.Lootbags.Disabled = true
 workspace.__THINGS.Coins:Destroy()
 workspace.__THINGS.Orbs:Destroy()
+workspace.__THINKS.Lootbags:Destroy()
 
 
 for Name, coin in pairs(Coin_Directory) do
@@ -656,8 +658,11 @@ local AutoDeletePEtstoggle = Pet_Tab:CreateToggle({
 
 
 Library.Network.Fired("Orb Added"):Connect(function(id, data)
-    task.wait()
     Library.Network.Fire("Claim Orbs", {id})
+end)
+
+Library.Network.Fired("Spawn Lootbag"):Connect(function(id, data)
+    Library.Network.Fire("Collect Lootbag", id, Vector3.new(0,0,0))
 end)
 
 -- Utils
