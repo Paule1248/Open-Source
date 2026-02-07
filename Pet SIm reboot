@@ -144,7 +144,7 @@ for egg, Egg_data in pairs(Egg_Directory) do
 end
 
 local function isHugePet(petId)
-    if string.find(petId, "Huge") then
+    if string.find(petId, "Huge") or string.find(petId, "Domortuus Astra") then
         return true
     end
 
@@ -487,8 +487,9 @@ local AutoConverGoldToggle = Pet_Tab:CreateToggle({
                         end
                     end
                     for petId, pets in pairs(normalPetsById) do
+                        print(#pets)
                         if #pets <= 5 then
-                            break
+                            continue
                         end
                         local petsToConvert = {}
                         for i = 1, 6 do
@@ -505,7 +506,7 @@ local AutoConverGoldToggle = Pet_Tab:CreateToggle({
                         for i = 6, 1, -1 do
                             table.remove(pets, i)
                         end
-                        task.wait(1)
+                        task.wait()
                         break
                     end
                     task.wait()
@@ -536,7 +537,7 @@ local ToggleRainbow = Pet_Tab:CreateToggle({
                     end
                     for petId, pets in pairs(goldPetsById) do
                         if #pets <= 5 then
-                            break
+                            continue
                         end
                         local petsToConvert = {}
                         for i = 1, 6 do
@@ -554,7 +555,7 @@ local ToggleRainbow = Pet_Tab:CreateToggle({
                         for i = 6, 1, -1 do
                             table.remove(pets, i)
                         end
-                        task.wait(1)
+                        task.wait()
                         break
                         -- end
                     end
