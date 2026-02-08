@@ -130,7 +130,6 @@ game:GetService("Players").LocalPlayer.PlayerScripts.Scripts.Game.Orbs.Disabled 
 game:GetService("Players").LocalPlayer.PlayerScripts.Scripts.Game.Lootbags.Disabled = true
 workspace.__THINGS.Coins:Destroy()
 workspace.__THINGS.Orbs:Destroy()
-workspace.__THINGS.Lootbags:Destroy()
 
 
 for Name, coin in pairs(Coin_Directory) do
@@ -144,7 +143,7 @@ for egg, Egg_data in pairs(Egg_Directory) do
 end
 
 local function isHugePet(petId)
-    if string.find(petId, "Huge") or string.find(petId, "Domortuus Astra") then
+    if string.find(petId, "Huge") or string.find(petId, "Domortuus Astra") or string.find(petId, "Empyrean Agony") then
         return true
     end
 
@@ -188,22 +187,42 @@ for _, pet in pairs(Data.Pets) do
 end
 
 
-local scripts = PlayerScripts:FindFirstChild("Scripts")
--- local gameFolder = scripts and scripts:FindFirstChild("Game") and scripts.Game.Main.Eggs
+Players.LocalPlayer.PlayerScripts.Scripts.Game["Open Eggs"].Disabled = true
 
--- if gameFolder then
--- 	local eggFrontend = gameFolder:FindFirstChild("Egg Opening Frontend")
--- 	if eggFrontend then
--- 		eggFrontend:Destroy()
--- 	end
--- end
+local function OpenEgg(_, pets)
+    if not Library.Variables.AutoDeleteEnabled then return end
 
--- if gameFolder then
--- 	local eggFrontend = gameFolder:FindFirstChild("Egg Opening Frontend")
--- 	if eggFrontend then
--- 		eggFrontend:Destroy()
--- 	end
--- end
+    local save = Library.Save.Get()
+    if not (save and save.AutoDelete) then return end
+
+    local del = {}
+
+    for _, p in pairs(pets) do
+        if not p.uid then break end
+
+        local ok, owner = Library.PetCmds.Get(p.uid)
+        if not ok or owner ~= Library.LocalPlayer then break end
+
+        local pet = Library.Directory.Pets[tostring(p.id)]
+        if not pet then break end
+
+        local mode = save.AutoDelete[tostring(pet.rarity)]
+        if mode == 2 and not (p.g or p.r or p.dm)
+        or mode == 3 and not (p.r or p.dm)
+        or mode == 4 then
+            table.insert(del, tostring(p.uid))
+        end
+    end
+
+    if #del > 0 then
+        Library.Network.Invoke("Delete Several Pets", del)
+    end
+end
+
+Library.Network.Fired("Open Egg"):Connect(function(a, b)
+    Library.Network.Fire("Opening Egg", a, b)
+    OpenEgg(a, b)
+end)
 
 
 
@@ -674,15 +693,35 @@ local AutoDeletePEtstoggle = Pet_Tab:CreateToggle({
 })
 
 
+local LootbagsFolder = Library.Things.Lootbags
+
+local function InstantCollect(id, pos, isBoost, boostData)
+    Network.Fire("Collect Lootbag", id, pos)
+    
+    if isBoost and boostData then
+        Library.Signal.Fire("Rewards Redeemed", {{boostData[1], boostData[2]}})
+    end
+end
+
+
 
 Library.Network.Fired("Orb Added"):Connect(function(id, data)
     Library.Network.Fire("Claim Orbs", {id})
 end)
 
-Library.Network.Fired("Spawn Lootbag"):Connect(function(id, data)
-    Library.Network.Fire("Collect Lootbag", id, Vector3.new(0,0,0))
+Network.Fired("Spawn Lootbag"):Connect(function(id, data)
+    local isBoost = (data.reward and data.reward[1] == "Boost")
+    local boostData = isBoost and {data.reward[3], data.reward[2]} or nil
+    
+    InstantCollect(id, data.position, isBoost, boostData)
 end)
 
+for _, bag in ipairs(LootbagsFolder:GetChildren()) do
+    local id = bag:GetAttribute("ID") or bag.Name
+    Network.Fire("Collect Lootbag", id, bag.CFrame.Position)
+    bag:Destroy()
+end
+LootbagsFolder:Destroy()
 -- Utils
 
 
@@ -705,26 +744,24 @@ local function RemoveCoin(id)
     
     ServerCoins[id] = nil
     
-    -- Part sofort löschen (kein repeat-loop mehr!)
     DestroyCoinPart(id)
 end
 
 local function AddCoin(id, data)
-    assert(typeof(id) == "string", "ID muss ein String sein")
-    if not data then return end
+    local pos = data and (data.p or data.position or data.Position)
+    if not id or not pos then return end
+    
     ServerCoins[id] = data
     
+
     if not workspace:FindFirstChild(id) then
         local p = Instance.new("Part")
         p.Name = id
         p.Anchored = true
         p.CanCollide = false
-        p.Material = Enum.Material.Neon
-        p.Color = Color3.fromRGB(255, 0, 0)
-        p.Transparency = 0.3
-        p.Size = Vector3.new(2, 2, 2)
-        p.Position = data.p
+        p.Position = (typeof(pos) == "Vector3" and pos) or Vector3.new(pos.x, pos.y, pos.z)
         p.Parent = workspace
+        p.Size = Vector3.new(5,5,5)
     end
 end
 
