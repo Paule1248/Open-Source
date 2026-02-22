@@ -1,0 +1,141 @@
+local Players = game:GetService("Players")
+local TweenService = game:GetService("TweenService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Libraries = ReplicatedStorage:WaitForChild("Libraries")
+
+local MerchantData = require(Libraries.MerchantData)
+local ItemData = require(Libraries.ItemData)
+local Short = require(Libraries.Short)
+
+local player = Players.LocalPlayer
+local stats = player:WaitForChild("clanstats")
+local collectiblesFolder = workspace:WaitForChild("_"):WaitForChild("CollectiblesClient")
+
+
+local SPEED = 60 
+local QUEST_PRIORITY = {
+    "Collectibles",
+    "HatchEggs",
+    "Legendaries"
+}
+
+local clickEvents = {
+    "MouseButton1Click",
+    "MouseButton2Click",
+    "Activated",
+    "MouseButton1Down"
+}
+
+
+local function getHRP()
+    local char = player.Character or player.CharacterAdded:Wait()
+    return char:WaitForChild("HumanoidRootPart")
+end
+
+local function teleport(targetPos)
+    local hrp = getHRP()
+    local distance = (hrp.Position - targetPos).Magnitude
+    if distance < 3 then return end 
+
+    local tweenInfo = TweenInfo.new(distance / SPEED, Enum.EasingStyle.Linear)
+    local tween = TweenService:Create(hrp, tweenInfo, {CFrame = CFrame.new(targetPos)})
+    
+    tween:Play()
+    task.wait(tweenInfo.Time - 0.3)
+end
+
+
+
+local function getBestQuest()
+    local quests = {}
+    for i = 1, 3 do
+        local name = stats["QuestAssigned"..i].Value
+        local progress = stats["QuestProgress"..i].Value
+        print(string.format("Quest %d: name='%s', progress=%d", i, name, progress))
+        if name ~= "" then
+            table.insert(quests, {id = i, name = name, progress = progress})
+        end
+    end
+
+    print("Quests vor Sortierung:")
+    for _, q in ipairs(quests) do
+        print(string.format("id=%d, name=%s, progress=%d", q.id, q.name, q.progress))
+    end
+
+    table.sort(quests, function(a, b)
+        local priorityA = table.find(QUEST_PRIORITY, a.name) or 99
+        local priorityB = table.find(QUEST_PRIORITY, b.name) or 99
+        print(string.format("Vergleich: %s(%d) vs %s(%d)", a.name, priorityA, b.name, priorityB))
+        return priorityA < priorityB
+    end)
+
+    if quests[1] then
+        print("Beste Quest: id=" .. quests[1].id .. ", name=" .. quests[1].name)
+    else
+        print("Keine passende Quest gefunden")
+    end
+
+    return quests[1]
+end
+
+local function stepHatch()
+    local eggPos = Vector3.new(526, -16, 191)
+    teleport(eggPos)
+    
+    local args = {
+        workspace:WaitForChild("_"):WaitForChild("Eggs"):WaitForChild("Mushroom Egg"),
+        100
+    }
+    ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("Functions"):WaitForChild("BuyEgg"):InvokeServer(unpack(args))
+end
+
+local function stepCollect()
+    local hrp = getHRP()
+    local nearest = nil
+    local shortestDistance = math.huge
+
+    for _, v in ipairs(collectiblesFolder:GetChildren()) do
+        local touchPart = v:FindFirstChild("Touch")
+        if touchPart and touchPart:IsA("BasePart") then
+            local dist = (hrp.Position - touchPart.Position).Magnitude
+            if dist < shortestDistance then
+                shortestDistance = dist
+                nearest = touchPart
+            end
+        end
+    end
+
+    if nearest then
+        teleport(nearest.Position)
+        if firetouchinterest then
+            firetouchinterest(hrp, nearest, 0)
+            task.wait()
+            firetouchinterest(hrp, nearest, 1)        
+        end
+    end
+end
+
+print("::: Dynamischer Autofarm gestartet :::")
+
+task.spawn(function()
+    while true do
+        -- BuyMerchant()
+        local currentQuest = getBestQuest()
+
+        if currentQuest then
+            print("Aktuelle Quest: " .. currentQuest.name .. " (Fortschritt: " .. currentQuest.progress .. ")")
+            if currentQuest.name == "HatchEggs" or currentQuest.name == "Legendaries" then
+                stepHatch()
+            elseif currentQuest.name == "Collectibles" then
+                stepCollect()
+            elseif currentQuest.name == "Craft" then
+                print("Crafting-Prio erkannt, aber System noch nicht implementiert.")
+                task.wait()
+            end
+        else
+            task.wait()
+        end
+
+        task.wait()
+    end
+end)
