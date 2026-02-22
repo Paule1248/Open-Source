@@ -6,6 +6,12 @@ local Default_Config = {
             Best: Will hatch the best egg in the game
             Index: WIP
     ]]--
+    ["TeleportMethod"] = "Tween",
+    --[[
+        TeleportMethods
+            Tween: Will tween to the location
+            CFrame: Will set the CFrame to the location
+    ]]--
 }
 
 local function mergeConfig(default, user)
@@ -73,6 +79,7 @@ local HatchSpeedStat = UI:AddStat("Hatch Speed", "0")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Workspace = game:GetService("Workspace")
+local VirtualUser = game:GetService("VirtualUser")
 
 local Libraries = ReplicatedStorage:WaitForChild("Libraries")
 local MerchantData = require(Libraries:WaitForChild("MerchantData"))
@@ -93,8 +100,15 @@ local CollectiblesLoaded = {}
 local CollectiblesPerSecond = 0
 local LastHatchTime = tick()
 
+local SafePart = Instance.new("Part", Workspace)
+SafePart.Size = Vector3.new(10,1,10)
+SafePart.Anchored = true
+SafePart.CanCollide = true
+SafePart.Name = "SafePart"
+
 local LoadCollectibles = game:GetService("ReplicatedStorage").Remotes.Events.LoadCollectibles
 local CollectCollectible = game:GetService("ReplicatedStorage").Remotes.Functions.CollectCollectible
+local Click = game:GetService("ReplicatedStorage").Remotes.Functions.Click
 
 local VisualFolder = Instance.new("Folder", Workspace)
 
@@ -110,6 +124,13 @@ LoadCollectibles.OnClientEvent:Connect(function(collectibles)
         part.Parent = VisualFolder
         part.Name = collectible.ID
     end
+end)
+
+task.spawn(function()
+    local GC = getconnections or get_signal_cons
+    if GC then for _, v in pairs(GC(player.Idled)) do if v.Disable then v:Disable() elseif v.Disconnect then v:Disconnect() end end end
+    player.Idled:Connect(function() VirtualUser:CaptureController(); VirtualUser:ClickButton2(Vector2.new()) end)
+    while task.wait(120) do VirtualUser:CaptureController(); VirtualUser:ClickButton2(Vector2.new()) end
 end)
 
 
@@ -162,6 +183,16 @@ local function teleport(target)
     local stepDistance = 40
     local stetpstook = 0
     
+
+    if Config.TeleportMethod == "Tween" then
+        local tweenInfo = TweenInfo.new(distance / 60, Enum.EasingStyle.Linear)
+        local tween = game:GetService("TweenService"):Create(hrp, tweenInfo, {CFrame = CFrame.new(targetPos + Vector3.new(0, 5, 0))})
+        local tween2 = game:GetService("TweenService"):Create(SafePart, tweenInfo, {CFrame = CFrame.new(targetPos - Vector3.new(0, 5, 0))})
+        tween:Play()
+        tween2:Play()
+        tween.Completed:Wait()
+        return
+    end
     local function forceJump()
         if humanoid:GetState() ~= Enum.HumanoidStateType.Jumping and humanoid:GetState() ~= Enum.HumanoidStateType.Freefall then
             humanoid:ChangeState(Enum.HumanoidStateType.Landed)
@@ -187,6 +218,7 @@ local function teleport(target)
         hrp.CFrame = CFrame.new(
             hrp.Position + direction * stepDistance + Vector3.new(0, 3, 0)
         )
+        SafePart.CFrame = hrp.CFrame
         
         forceJump()
         task.wait(0.2)
@@ -196,6 +228,7 @@ local function teleport(target)
     end
     
     hrp.CFrame = CFrame.new(targetPos + Vector3.new(0, 5, 0))
+    SafePart.CFrame = CFrame.new(targetPos - Vector3.new(0, 5, 0))
     forceJump()
 end
 
@@ -464,7 +497,10 @@ task.spawn(function()
         task.spawn(function()
             CollectiblesPerSecondStat:Update(Utils:FormatNumber(CollectiblesPerSecond))
         end)
-        wait()
+        Click:InvokeServer(
+            nil
+        )
+        task.wait()
     end
 end)
 
