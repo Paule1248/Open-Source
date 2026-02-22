@@ -1,0 +1,521 @@
+local Default_Config = {
+    ["FarmMode"] = "Best",
+    --[[
+        FarmModes
+            Collectibles: will hatch Mushroom Egg and when not hatchable the nearest
+            Best: Will hatch the best egg in the game
+            Index: WIP
+    ]]--
+}
+
+local function mergeConfig(default, user)
+	if type(default) ~= "table" then
+		return user
+	end
+	user = user or {}
+	for k, v in pairs(default) do
+		if type(v) == "table" then
+			user[k] = mergeConfig(v, user[k])
+		elseif user[k] == nil then
+			user[k] = v
+		end
+	end
+	return user
+end
+
+local Config = (getgenv and getgenv().Config) or _G.Config or {}
+Config = mergeConfig(Default_Config, Config)
+
+
+local success, content = pcall(game.HttpGet, game, "https://raw.githubusercontent.com/Paule1248/Open-Source/refs/heads/main/Utils/Lib%20New")
+local UILib
+
+if success then
+    writefile("Hasty-Utils/UILib.lua", content)
+    UILib = loadstring(content)()
+    print("[Hasty] UILib updated from GitHub")
+elseif isfile("Hasty-Utils/UILib.lua") then
+    UILib = loadstring(readfile("Hasty-Utils/UILib.lua"))()
+    print("[Hasty] UILib loaded from Cache")
+else
+    game.Players.LocalPlayer:Kick("Fatal Error: UILib not found and no internet.")
+    return
+end
+
+local success, content = pcall(game.HttpGet, game, "https://raw.githubusercontent.com/Paule1248/Open-Source/refs/heads/main/Utils/Utils")
+local Utils
+
+if success then
+    writefile("Hasty-Utils/Utils.lua", content)
+    Utils = loadstring(content)()
+    print("[Hasty] Utils updated from GitHub")
+elseif isfile("Hasty-Utils/Utils.lua") then
+    Utils = loadstring(readfile("Hasty-Utils/Utils.lua"))()
+    print("[Hasty] Utils loaded from Cache")
+else
+    game.Players.LocalPlayer:Kick("Fatal Error: Utils not found and no internet.")
+    return
+end
+
+local UI = UILib:CreateWindow("Royal Hatchers 🤔😘")
+
+local StartTime = os.time()
+local StartEggsHatched = game:GetService("Players").LocalPlayer.leaderstats.Eggs.Value
+
+local SessionEggsStat = UI:AddStat("Session Eggs", "0")
+local UptimeLabel = UI:AddStat("Uptime", "00:00:00")
+UI:AddSeperator()
+local GemStat  = UI:AddStat("Gems", "0")
+local ClanPointsStat = UI:AddStat("Clan Points", "0")
+local CollectiblesPerSecondStat = UI:AddStat("Collectibles/s", "0")
+local HatchSpeedStat = UI:AddStat("Hatch Speed", "0")
+
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Workspace = game:GetService("Workspace")
+
+local Libraries = ReplicatedStorage:WaitForChild("Libraries")
+local MerchantData = require(Libraries:WaitForChild("MerchantData"))
+local ItemData = require(Libraries:WaitForChild("ItemData"))
+
+local player = Players.LocalPlayer
+local stats = player.clanstats
+local collectiblesFolder = Workspace:FindFirstChild("_").CollectiblesClient
+local eggsFolder = Workspace:FindFirstChild("_").Eggs
+
+local MERCHANT_POS = Vector3.new(1011, 100, 549)
+local QUEST_PRIORITY = {"Collectibles", "HatchEggs", "Legendaries"}
+local BestIslandData = {
+    "MysticalForest",
+    CFrame.new(307, 459, 1510)
+}
+local CollectiblesLoaded = {}
+local CollectiblesPerSecond = 0
+local LastHatchTime = tick()
+
+local LoadCollectibles = game:GetService("ReplicatedStorage").Remotes.Events.LoadCollectibles
+local CollectCollectible = game:GetService("ReplicatedStorage").Remotes.Functions.CollectCollectible
+
+local VisualFolder = Instance.new("Folder", Workspace)
+
+LoadCollectibles.OnClientEvent:Connect(function(collectibles)
+    for _, collectible in pairs(collectibles) do
+        CollectiblesLoaded[collectible.ID] = collectible.Pivot
+        local part = Instance.new("Part")
+        part.Size = Vector3.new(5, 5, 5)
+        part.Transparency = 0.5
+        part.Anchored = true
+        part.CanCollide = false
+        part.CFrame = collectible.Pivot
+        part.Parent = VisualFolder
+        part.Name = collectible.ID
+    end
+end)
+
+
+local Event = game:GetService("ReplicatedStorage").Remotes.Functions.CollectCollectible
+local mtHook; mtHook = hookmetamethod(game, "__namecall", function(...)
+	local self = ...
+
+	if rawequal(self, Event) and getnamecallmethod() == "InvokeServer" then
+		local Args = table.pack(...)
+		
+		local Result = table.pack(
+			mtHook(self, Args[2])
+		)
+
+        if Result[1] then
+            CollectiblesLoaded[Args[2]] = nil
+            local part = VisualFolder:FindFirstChild(Args[2])
+            if part then
+                part:Destroy()
+            end
+            CollectiblesPerSecond = CollectiblesPerSecond + 1
+            task.delay(1, function()
+                CollectiblesPerSecond = CollectiblesPerSecond - 1
+            end)
+        end
+
+		return table.unpack(Result, 1, Result.n)
+	end
+
+	return mtHook(...)
+end)
+
+task.wait()
+
+local function getHRP()
+    local char = player.Character or player.CharacterAdded:Wait()
+    return char:WaitForChild("HumanoidRootPart")
+end
+
+local function teleport(target)
+    local hrp = getHRP()
+    if not hrp then return end
+    
+    local character = hrp.Parent
+    local humanoid = character:FindFirstChildOfClass("Humanoid")
+    if not humanoid then return end
+    
+    local targetPos = typeof(target) == "CFrame" and target.Position or target
+    local distance = (targetPos - hrp.Position).Magnitude
+    local stepDistance = 40
+    local stetpstook = 0
+    
+    local function forceJump()
+        if humanoid:GetState() ~= Enum.HumanoidStateType.Jumping and humanoid:GetState() ~= Enum.HumanoidStateType.Freefall then
+            humanoid:ChangeState(Enum.HumanoidStateType.Landed)
+            task.wait(0.2)
+            humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
+            task.wait(0.1)
+        end
+    end
+    
+    if distance <= stepDistance then
+        forceJump()
+        hrp.CFrame = CFrame.new(targetPos + Vector3.new(0, 5, 0))
+        return
+    end
+    
+    forceJump()
+    
+    local direction = (targetPos - hrp.Position).Unit
+    local steps = math.floor(distance / stepDistance)
+    
+    for i = 1, steps do
+        stetpstook = stetpstook + 1
+        hrp.CFrame = CFrame.new(
+            hrp.Position + direction * stepDistance + Vector3.new(0, 3, 0)
+        )
+        
+        forceJump()
+        task.wait(0.2)
+        if stetpstook % 5 == 0 then
+            task.wait(1)
+        end
+    end
+    
+    hrp.CFrame = CFrame.new(targetPos + Vector3.new(0, 5, 0))
+    forceJump()
+end
+
+local hrp = getHRP()
+
+
+ReplicatedStorage.Remotes.Functions.TeleportIsland:InvokeServer("Forest", "TelportTo")
+task.wait(0.5)
+ReplicatedStorage.Remotes.Functions.TeleportIsland:InvokeServer("Forest", "TeleportBack")
+task.wait(0.5)
+for _, v in ipairs(collectiblesFolder:GetChildren()) do
+    local touch = v:FindFirstChild("Touch")
+    if touch then
+        local dist = (hrp.Position - touch.Position).Magnitude
+        if dist < 10 then
+            pcall(function() firetouchinterest(hrp, touch, 0) end)
+            task.wait()
+            pcall(function() firetouchinterest(hrp, touch, 1) end)
+        else
+            teleport(touch.Position)
+        end
+        task.wait(0.5)
+    end
+end
+
+local clickEvents = {
+    "MouseButton1Click",
+    "MouseButton2Click",
+    "Activated",
+    "MouseButton1Down"
+}
+
+
+local function buyFromMerchant()
+    for merchantID, data in pairs(MerchantData) do
+        local gui = player.PlayerGui.GUI:FindFirstChild(data.FrameDisplayName or "")
+        if gui and gui:FindFirstChild("InventoryScroll") then
+            local hasStock = true
+            local tpCalled = false
+            
+            while hasStock do
+                hasStock = false
+                local items = gui.InventoryScroll:GetChildren()
+
+                for _, itemFrame in pairs(items) do
+                    if itemFrame:IsA("Frame") and (itemFrame:GetAttribute("Stock") or 0) > 0 then
+                        hasStock = true
+                        break
+                    end
+                end
+
+                if hasStock then
+                    if not tpCalled then
+                        pcall(function() ReplicatedStorage.Remotes.Functions.TeleportIsland:InvokeServer("Forest", "TelportTo") end)
+                        task.wait(0.5)
+                        tpCalled = true
+                    end
+                    teleport(MERCHANT_POS)
+                    task.wait()
+                    for _, itemFrame in pairs(gui.InventoryScroll:GetChildren()) do
+                        if itemFrame:IsA("Frame") and (itemFrame:GetAttribute("Stock") or 0) > 0 then
+                            local buyBtn = itemFrame:FindFirstChild("Buy")
+                            if buyBtn then
+                                for i = 1, (itemFrame:GetAttribute("Stock") or 0) do
+                                    for _, eventName in pairs(clickEvents) do
+                                        local event = buyBtn:FindFirstChild(eventName) or buyBtn[eventName]
+                                        if event then
+                                            for _, conn in pairs(getconnections(event)) do
+                                                conn:Fire()
+                                                task.wait()
+                                            end
+                                        end
+                                    end
+                                    task.wait()
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+            
+            if tpCalled then
+                pcall(function() ReplicatedStorage.Remotes.Functions.TeleportIsland:InvokeServer("Forest", "TeleportBack") end)
+                task.wait(0.5)
+            end
+            
+            return true
+        end
+    end
+    return false
+end
+
+local function getBestQuest()
+    local quests = {}
+    for i = 1, 3 do
+        local name = stats["QuestAssigned"..i].Value
+        if name ~= "" then table.insert(quests, {id = i, name = name}) end
+    end
+    table.sort(quests, function(a, b)
+        return (table.find(QUEST_PRIORITY, a.name) or 99) < (table.find(QUEST_PRIORITY, b.name) or 99)
+    end)
+    return quests[1]
+end
+
+local function getNearestMushroomEgg()
+    local nearestEgg = nil
+    local shortestDistance = math.huge
+
+    for _, egg in pairs(eggsFolder:GetChildren()) do
+        if egg.Name == "Mushroom Egg" and egg:IsA("Model") then
+            local primaryPart = egg.PrimaryPart or egg:FindFirstChildWhichIsA("BasePart")
+            if primaryPart then
+                local distance = (primaryPart.Position - getHRP().Position).Magnitude
+                if distance < shortestDistance and distance < 40 then
+                    shortestDistance = distance
+                    nearestEgg = egg
+                end
+            end
+        end
+    end
+
+    if not nearestEgg then
+        for _, egg in pairs(eggsFolder:GetChildren()) do
+            if egg:IsA("Model") then
+                local primaryPart = egg.PrimaryPart or egg:FindFirstChildWhichIsA("BasePart")
+                if primaryPart then
+                    local distance = (primaryPart.Position - getHRP().Position).Magnitude
+                    if distance < shortestDistance and distance < 40 then
+                        shortestDistance = distance
+                        nearestEgg = egg
+                    end
+                end
+            end
+        end
+    end
+
+    return nearestEgg
+end
+
+local function getNearestMysticalEgg()
+    local nearestEgg = nil
+    local shortestDistance = math.huge
+
+    for _, egg in pairs(eggsFolder:GetChildren()) do
+        if egg.Name == "Mystical Egg" and egg:IsA("Model") then
+            local primaryPart = egg.PrimaryPart or egg:FindFirstChildWhichIsA("BasePart")
+            if primaryPart then
+                local distance = (primaryPart.Position - getHRP().Position).Magnitude
+                if distance < shortestDistance and distance < 40 then
+                    shortestDistance = distance
+                    nearestEgg = egg
+                end
+            end
+        end
+    end
+
+    if not nearestEgg then
+        for _, egg in pairs(eggsFolder:GetChildren()) do
+            if egg:IsA("Model") then
+                local primaryPart = egg.PrimaryPart or egg:FindFirstChildWhichIsA("BasePart")
+                if primaryPart then
+                    local distance = (primaryPart.Position - getHRP().Position).Magnitude
+                    if distance < shortestDistance and distance < 40 then
+                        shortestDistance = distance
+                        nearestEgg = egg
+                    end
+                end
+            end
+        end
+    end
+
+    return nearestEgg
+end
+
+local function Hatch()
+    task.spawn(function()
+        ReplicatedStorage.Remotes.Functions.BuyEgg:InvokeServer(getNearestMushroomEgg(), 100)
+    end)
+end
+
+local function Hatch2()
+    task.spawn(function()
+        local success = ReplicatedStorage.Remotes.Functions.BuyEgg:InvokeServer(getNearestMysticalEgg(), 100)
+        if success then
+            task.spawn(function()
+                local timeDiff = tick() - LastHatchTime
+                HatchSpeedStat:Update(string.format("%.2f", timeDiff) .. "s")
+            end)
+            LastHatchTime = tick()
+        end
+    end)
+end
+
+local function GetBestCollectible()
+    local bestId = nil
+    local highestCount = 0
+
+    for id, pivot in pairs(CollectiblesLoaded) do
+        local count = 0
+
+        for id2, pivot2 in pairs(CollectiblesLoaded) do
+            if id ~= id2 then
+                local distance = (pivot.Position - pivot2.Position).Magnitude
+                if distance < 10 then
+                    count = count + 1
+                end
+            end
+        end
+
+        if count > highestCount then
+            highestCount = count
+            bestId = id
+        end
+    end
+
+    return bestId, highestCount
+end
+
+local function doCollect()
+    local hrp = getHRP()
+    local nearest, shortDist, nearestID = nil, math.huge, nil
+
+    for id, pivot in pairs(CollectiblesLoaded) do
+        local dist = (hrp.Position - pivot.Position).Magnitude
+        if dist < shortDist then
+            shortDist = dist; nearest = pivot; nearestID = id
+        end
+    end
+
+    if nearest then
+        if shortDist < 10 then
+            task.spawn(function()
+                local success = CollectCollectible:InvokeServer(nearestID)
+                if success then
+                    CollectiblesLoaded[nearestID] = nil
+                end
+            end)
+        else
+            teleport(nearest.Position)
+            task.spawn(function()
+                local success = CollectCollectible:InvokeServer(nearestID)
+                if success then
+                    CollectiblesLoaded[nearestID] = nil
+                end
+            end)
+        end
+    end
+end
+
+collectiblesFolder:Destroy()
+
+
+task.spawn(function()
+    while true do
+        local elapsed = os.time() - StartTime
+        task.spawn(function()
+            UptimeLabel:Update(Utils:FormatTime(elapsed))
+        end)
+        local eggsHatched = player.leaderstats.Eggs.Value - StartEggsHatched
+        task.spawn(function()
+            SessionEggsStat:Update(Utils:FormatNumber(eggsHatched))
+        end)
+        task.spawn(function()
+            GemStat:Update(Utils:FormatNumber(player.leaderstats.Gems.Value))
+        end)
+        task.spawn(function()
+            CollectiblesPerSecondStat:Update(Utils:FormatNumber(CollectiblesPerSecond))
+        end)
+        wait()
+    end
+end)
+
+
+
+if Config.FarmMode == "Collectibles" then
+    task.spawn(function()
+        while true do
+            Hatch()
+            wait()
+        end
+    end)
+    task.spawn(function()
+        while task.wait() do
+            for id, pivot in pairs(CollectiblesLoaded) do
+                local dist = (hrp.Position - pivot.Position).Magnitude
+                if dist < 10 then
+                    task.spawn(function()
+                        local success = CollectCollectible:InvokeServer(id)
+                        if success then
+                            CollectiblesLoaded[id] = nil
+                        end
+                    end)
+                end
+            end
+        end
+    end)
+
+
+    while true do
+        buyFromMerchant()
+        doCollect()
+        task.wait()
+    end
+elseif Config.FarmMode == "Best" then
+    while true do
+        buyFromMerchant()
+
+        if (getHRP().Position - BestIslandData[2].Position).Magnitude >= 15 then
+            pcall(function()
+                ReplicatedStorage.Remotes.Functions.TeleportIsland:InvokeServer(BestIslandData[1], "TelportTo")
+            end)
+        
+            task.wait(0.5)
+        
+            teleport(
+                CFrame.new(307, 459, 1510) *
+                CFrame.new(math.random(-5,5), math.random(-5,5), math.random(-5,5))
+            )
+        end
+        task.wait()
+        Hatch2()
+    end
+end
