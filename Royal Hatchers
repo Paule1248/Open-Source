@@ -12,6 +12,8 @@ local Default_Config = {
             Tween: Will tween to the location
             CFrame: Will set the CFrame to the location
     ]]--
+    ["Webhook"] = "",
+    ["WebhookID"] = ""
 }
 
 local function mergeConfig(default, user)
@@ -89,7 +91,7 @@ local player = Players.LocalPlayer
 local stats = player.clanstats
 local collectiblesFolder = Workspace:FindFirstChild("_").CollectiblesClient
 local eggsFolder = Workspace:FindFirstChild("_").Eggs
-
+local PetData = require(ReplicatedStorage.Libraries.PetData)
 local MERCHANT_POS = Vector3.new(1011, 100, 549)
 local QUEST_PRIORITY = {"Collectibles", "HatchEggs", "Legendaries"}
 local BestIslandData = {
@@ -250,7 +252,7 @@ for _, v in ipairs(collectiblesFolder:GetChildren()) do
         else
             teleport(touch.Position)
         end
-        task.wait(0.5)
+        task.wait(0.1)
     end
 end
 
@@ -403,16 +405,66 @@ local function getNearestMysticalEgg()
     return nearestEgg
 end
 
+local function SendMessageWithEmbedAndPing(embed)
+	local data = {
+		["content"] = "<@" .. Config.WebhookID .. ">",
+		["embeds"] = {
+			{
+				["title"] = embed.title,
+				["description"] = embed.description,
+				["color"] = embed.color,
+				["fields"] = embed.fields,
+				["footer"] = {
+					["text"] = embed.footer.text,
+				},
+			},
+		},
+	}
+	request({
+		Url = Config.Webhook,
+		Method = "POST",
+		Headers = {	["Content-Type"] = "application/json"},
+		Body = game:GetService("HttpService"):JSONEncode(data),
+	})
+end
+
+
 local function Hatch()
     task.spawn(function()
         ReplicatedStorage.Remotes.Functions.BuyEgg:InvokeServer(getNearestMushroomEgg(), 100)
     end)
 end
 
+local PetData = require(ReplicatedStorage.Libraries.PetData)
+
 local function Hatch2()
     task.spawn(function()
         local success = ReplicatedStorage.Remotes.Functions.BuyEgg:InvokeServer(getNearestMysticalEgg(), 100)
         if success then
+            local Eggs, Pets = success[1], success[2]
+
+            for _, pet in ipairs(Pets) do
+                local petName = pet[1]
+                local petType = pet[2]
+                local petInfo = PetData[petName]
+
+                if petInfo and (petInfo.Rarity == "Secret" or petInfo.Rarity == "Royal") and Config.Webhook then
+                    local embed = {
+                        title = (petInfo.Rarity == "Royal" and "🔥 ROYAL PET HATCHED!" or "💎 SECRET PET HATCHED!"),
+                        description = "You just hatched a **" .. petName .. "** (" .. petType .. ")",
+                        color = petInfo.Rarity == "Royal" and 16776960 or 16711935,
+                        fields = {
+                            {name = "👤 Player", value = player.Name, inline = true},
+                            {name = "📦 Hatch Session", value = tostring(player.leaderstats.Eggs.Value - StartEggsHatched) .. " hatched", inline = true},
+                        },
+                        footer = {text = "Pimmel Hatcher (https://discord.gg/8ywgJqucQK)"},
+                        timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ"),
+                    }
+
+                    SendMessageWithEmbedAndPing(embed)
+                end
+            end
+
             task.spawn(function()
                 local timeDiff = tick() - LastHatchTime
                 HatchSpeedStat:Update(string.format("%.2f", timeDiff) .. "s")
@@ -459,7 +511,7 @@ local function doCollect()
     end
 
     if nearest then
-        if shortDist < 10 then
+        if shortDist < 15 then
             task.spawn(function()
                 local success = CollectCollectible:InvokeServer(nearestID)
                 if success then
