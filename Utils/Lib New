@@ -116,7 +116,7 @@ function Library:CreateWindow(TitleText: string)
 	Watermark.Parent = FullscreenBG
 	Watermark.BackgroundTransparency = 1.000
 	Watermark.Size = UDim2.new(1, 0, 1, 0)
-	Watermark.Image = "rbxassetid://74318479930543"
+	Watermark.Image = "rbxassetid://94472596251951"
 	Watermark.ImageTransparency = 0.950
 
 	local FullTitleLabel = Instance.new("TextLabel")
@@ -232,7 +232,7 @@ function Library:CreateWindow(TitleText: string)
 	FloatToggleBtn.Size = UDim2.new(0, 50, 0, 50)
 	FloatToggleBtn.ZIndex = 10
 	FloatToggleBtn.AutoButtonColor = true
-	FloatToggleBtn.Image = "rbxassetid://74318479930543"
+	FloatToggleBtn.Image = "rbxassetid://94472596251951"
 
 	local FloatCorner = Instance.new("UICorner")
 	FloatCorner.CornerRadius = UDim.new(1, 0) -- Kreisform
@@ -250,7 +250,7 @@ function Library:CreateWindow(TitleText: string)
 	FloatShadow.Position = UDim2.new(0, -15, 0, -15)
 	FloatShadow.Size = UDim2.new(1, 30, 1, 30)
 	FloatShadow.ZIndex = 9
-	FloatShadow.Image = "rbxassetid://1316045217"
+	FloatShadow.Image = "rbxassetid://94472596251951"
 	FloatShadow.ImageColor3 = Color3.fromRGB(0,0,0)
 	FloatShadow.ImageTransparency = 0.6
 	FloatShadow.SliceCenter = Rect.new(10, 10, 118, 118)
@@ -452,5 +452,4 @@ function Library:CreateWindow(TitleText: string)
 	end
 	return WindowObj
 end
-
 return Library
