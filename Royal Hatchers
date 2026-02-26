@@ -65,7 +65,7 @@ else
     return
 end
 
-local UI = UILib:CreateWindow("Royal Hatchers 🤔😘")
+local UI = UILib:CreateWindow("Royal Hatchers (.gg/8ywgJqucQK)")
 
 local StartTime = os.time()
 local StartEggsHatched = game:GetService("Players").LocalPlayer.leaderstats.Eggs.Value
@@ -119,12 +119,13 @@ LoadCollectibles.OnClientEvent:Connect(function(collectibles)
         CollectiblesLoaded[collectible.ID] = collectible.Pivot
         local part = Instance.new("Part")
         part.Size = Vector3.new(5, 5, 5)
-        part.Transparency = 0.5
+        part.Transparency = 0
         part.Anchored = true
         part.CanCollide = false
         part.CFrame = collectible.Pivot
         part.Parent = VisualFolder
         part.Name = collectible.ID
+        part.Color = Color3.new(0.007843, 0.694117, 0.658823)
     end
 end)
 
@@ -188,8 +189,8 @@ local function teleport(target)
 
     if Config.TeleportMethod == "Tween" then
         local tweenInfo = TweenInfo.new(distance / 60, Enum.EasingStyle.Linear)
-        local tween = game:GetService("TweenService"):Create(hrp, tweenInfo, {CFrame = CFrame.new(targetPos + Vector3.new(0, 5, 0))})
-        local tween2 = game:GetService("TweenService"):Create(SafePart, tweenInfo, {CFrame = CFrame.new(targetPos - Vector3.new(0, 5, 0))})
+        local tween = game:GetService("TweenService"):Create(hrp, tweenInfo, {CFrame = CFrame.new(targetPos)})
+        local tween2 = game:GetService("TweenService"):Create(SafePart, tweenInfo, {CFrame = CFrame.new(targetPos - Vector3.new(0, 3, 0))})
         tween:Play()
         tween2:Play()
         tween.Completed:Wait()
@@ -251,6 +252,15 @@ for _, v in ipairs(collectiblesFolder:GetChildren()) do
             pcall(function() firetouchinterest(hrp, touch, 1) end)
         else
             teleport(touch.Position)
+        end
+        task.wait(0.5)
+    end
+    for _, c in ipairs(collectiblesFolder:GetChildren()) do
+        local touch = c:FindFirstChild("Touch")
+        if touch then
+            pcall(function() firetouchinterest(hrp, touch, 0) end)
+            task.wait()
+            pcall(function() firetouchinterest(hrp, touch, 1) end)
         end
         task.wait(0.1)
     end
@@ -532,6 +542,48 @@ end
 
 collectiblesFolder:Destroy()
 
+local areas = {
+    workspace.Spawn,
+    workspace.Autumn,
+    workspace.Frost,
+    workspace.Jungle,
+    workspace["New Areas"],
+    workspace["New New Areas"],
+    workspace.Other,
+    workspace:FindFirstChild("Union"),
+    workspace:FindFirstChild("Icosphere.001"),
+    workspace:FindFirstChild("Cylinder.003"),
+}
+
+for _, area in ipairs(areas) do
+    if area then
+        area:Destroy()
+    end
+end
+
+for _, child in ipairs(workspace:GetChildren()) do
+    if child:IsA("Model") then
+        child:Destroy()
+    end
+end
+
+local objects = {
+    workspace._.BountyBoards,
+    workspace._.Collectibles,
+    workspace._.Debris,
+    workspace._.EggDecor,
+    workspace._.ItemDropsDebris,
+    workspace._.Leaderboards,
+    workspace._.Pets,
+    workspace._.Walkups,
+    workspace._.Portals,
+}
+
+for _, obj in ipairs(objects) do
+    if obj then
+        obj:Destroy()
+    end
+end
 
 task.spawn(function()
     while true do
@@ -556,7 +608,16 @@ task.spawn(function()
     end
 end)
 
-
+task.spawn(function()
+    while task.wait() do
+        task.spawn(function()
+            Click:InvokeServer(
+                nil
+            )
+        end)
+        task.wait()  
+    end
+end)
 
 if Config.FarmMode == "Collectibles" then
     task.spawn(function()
@@ -599,7 +660,7 @@ elseif Config.FarmMode == "Best" then
             task.wait(0.5)
         
             teleport(
-                CFrame.new(307, 459, 1510) *
+                CFrame.new(307, 450, 1510) *
                 CFrame.new(math.random(-5,5), math.random(-5,5), math.random(-5,5))
             )
         end
