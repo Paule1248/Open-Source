@@ -10,10 +10,11 @@ local Default_Config = {
     --[[
         TeleportMethods
             Tween: Will tween to the location
-            CFrame: Will set the CFrame to the location
+            TP: Will set the CFrame to the location
     ]]--
     ["Webhook"] = "",
-    ["WebhookID"] = ""
+    ["WebhookID"] = "",
+    ["Merchant"] = true
 }
 
 local function mergeConfig(default, user)
@@ -72,6 +73,7 @@ local StartEggsHatched = game:GetService("Players").LocalPlayer.leaderstats.Eggs
 
 local SessionEggsStat = UI:AddStat("Session Eggs", "0")
 local UptimeLabel = UI:AddStat("Uptime", "00:00:00")
+local StatusLabel = UI:AddStat("Status", "Idle")
 UI:AddSeperator()
 local GemStat  = UI:AddStat("Gems", "0")
 local ClanPointsStat = UI:AddStat("Clan Points", "0")
@@ -86,6 +88,7 @@ local VirtualUser = game:GetService("VirtualUser")
 local Libraries = ReplicatedStorage:WaitForChild("Libraries")
 local MerchantData = require(Libraries:WaitForChild("MerchantData"))
 local ItemData = require(Libraries:WaitForChild("ItemData"))
+local EggData = require(Libraries:WaitForChild("EggData"))
 
 local player = Players.LocalPlayer
 local stats = player.clanstats
@@ -98,19 +101,32 @@ local BestIslandData = {
     "MysticalForest",
     CFrame.new(307, 459, 1510)
 }
+local IndexedPets = {}
+local BestEggIndex = {}
+local BannedEggs = {"Valentines Egg", "Exclusive Pets","100K Egg","Release Egg","Lovely Egg", "500K Egg",
+    "Season 1 Egg"
+}
 local CollectiblesLoaded = {}
 local CollectiblesPerSecond = 0
 local LastHatchTime = tick()
 
-local SafePart = Instance.new("Part", Workspace)
-SafePart.Size = Vector3.new(10,1,10)
+local SafePart = Instance.new("Part", workspace)
+SafePart.Size = Vector3.new(100,1,100)
 SafePart.Anchored = true
 SafePart.CanCollide = true
 SafePart.Name = "SafePart"
 
+-- Decal hinzufügen
+local decal = Instance.new("Decal")
+decal.Texture = "rbxassetid://94472596251951"
+decal.Face = Enum.NormalId.Top
+decal.Parent = SafePart
+
 local LoadCollectibles = game:GetService("ReplicatedStorage").Remotes.Events.LoadCollectibles
 local CollectCollectible = game:GetService("ReplicatedStorage").Remotes.Functions.CollectCollectible
 local Click = game:GetService("ReplicatedStorage").Remotes.Functions.Click
+local UpdateIndex = game:GetService("ReplicatedStorage").Remotes.Events.UpdateIndex
+
 
 local VisualFolder = Instance.new("Folder", Workspace)
 
@@ -126,6 +142,63 @@ LoadCollectibles.OnClientEvent:Connect(function(collectibles)
         part.Parent = VisualFolder
         part.Name = collectible.ID
         part.Color = Color3.new(0.007843, 0.694117, 0.658823)
+    end
+end)
+
+local function GetEggFromPet(petName)
+    for eggName, data in pairs(EggData) do
+        for petInEgg, _ in pairs(data.Chances) do
+            if petInEgg == petName then
+                return eggName
+            end
+        end
+    end
+    return "Unknown"
+end
+
+
+local function TableCount(tbl)
+    local count = 0
+    for _ in pairs(tbl) do
+        count += 1
+    end
+    return count
+end
+UpdateIndex.OnClientEvent:Connect(function(data)
+    local found = false
+    IndexedPets = {}
+    for type, pets in pairs(data) do
+        for _, petName in ipairs(pets) do
+            IndexedPets[type  .. " " .. petName] = true
+        end
+    end
+
+    local unknownCount = {}
+
+    for petName, data in pairs(PetData) do
+        if (not IndexedPets["Normal " .. petName] or not IndexedPets["Shiny " .. petName]) and data.Rarity ~= "Royal" and data.Rarity ~= "Secret" then          
+            local egg = GetEggFromPet(petName)
+            if egg ~= "Unknown" and not table.find(BannedEggs, egg) then
+                unknownCount[egg] = (unknownCount[egg] or 0) + 1
+            end
+        end
+    end
+
+    local maxCount = 0
+    for _, count in pairs(unknownCount) do
+        if count > maxCount then
+            maxCount = count
+        end
+    end
+
+    for egg, count in pairs(unknownCount) do
+        if count == maxCount then
+            BestEggIndex = egg
+            found = true
+        end
+    end
+    if not found then
+        BestEggIndex = "Mystical Egg"
     end
 end)
 
@@ -185,6 +258,9 @@ local function teleport(target)
     local distance = (targetPos - hrp.Position).Magnitude
     local stepDistance = 40
     local stetpstook = 0
+    if distance < 10 then
+        return
+    end
     
 
     if Config.TeleportMethod == "Tween" then
@@ -245,15 +321,8 @@ task.wait(0.5)
 for _, v in ipairs(collectiblesFolder:GetChildren()) do
     local touch = v:FindFirstChild("Touch")
     if touch then
-        local dist = (hrp.Position - touch.Position).Magnitude
-        if dist < 10 then
-            pcall(function() firetouchinterest(hrp, touch, 0) end)
-            task.wait()
-            pcall(function() firetouchinterest(hrp, touch, 1) end)
-        else
-            teleport(touch.Position)
-        end
-        task.wait(0.5)
+        teleport(touch.Position)
+        task.wait(0.1)
     end
     for _, c in ipairs(collectiblesFolder:GetChildren()) do
         local touch = c:FindFirstChild("Touch")
@@ -262,7 +331,7 @@ for _, v in ipairs(collectiblesFolder:GetChildren()) do
             task.wait()
             pcall(function() firetouchinterest(hrp, touch, 1) end)
         end
-        task.wait(0.1)
+        task.wait()
     end
 end
 
@@ -275,6 +344,9 @@ local clickEvents = {
 
 
 local function buyFromMerchant()
+    if not Config["Merchant"] then
+        return
+    end
     for merchantID, data in pairs(MerchantData) do
         local gui = player.PlayerGui.GUI:FindFirstChild(data.FrameDisplayName or "")
         if gui and gui:FindFirstChild("InventoryScroll") then
@@ -484,29 +556,31 @@ local function Hatch2()
     end)
 end
 
-local function GetBestCollectible()
-    local bestId = nil
-    local highestCount = 0
+local function GetNearestEggModelByName(eggName)
+    local hrp = getHRP()
+    if not hrp then return nil end
 
-    for id, pivot in pairs(CollectiblesLoaded) do
-        local count = 0
+    local nearestEgg
+    local nearestPrimary
+    local shortestDistance = math.huge
 
-        for id2, pivot2 in pairs(CollectiblesLoaded) do
-            if id ~= id2 then
-                local distance = (pivot.Position - pivot2.Position).Magnitude
-                if distance < 10 then
-                    count = count + 1
+    for _, egg in ipairs(eggsFolder:GetChildren()) do
+        if egg:IsA("Model") and egg.Name == eggName then
+            local primaryPart = egg.PrimaryPart or egg:FindFirstChildWhichIsA("BasePart")
+            
+            if primaryPart then
+                local distance = (primaryPart.Position - hrp.Position).Magnitude
+                
+                if distance < shortestDistance then
+                    shortestDistance = distance
+                    nearestEgg = egg
+                    nearestPrimary = primaryPart
                 end
             end
         end
-
-        if count > highestCount then
-            highestCount = count
-            bestId = id
-        end
     end
 
-    return bestId, highestCount
+    return nearestEgg,nearestPrimary
 end
 
 local function doCollect()
@@ -652,7 +726,7 @@ elseif Config.FarmMode == "Best" then
     while true do
         buyFromMerchant()
 
-        if (getHRP().Position - BestIslandData[2].Position).Magnitude >= 15 then
+        if (getHRP().Position - BestIslandData[2].Position).Magnitude >= 35 then
             pcall(function()
                 ReplicatedStorage.Remotes.Functions.TeleportIsland:InvokeServer(BestIslandData[1], "TelportTo")
             end)
@@ -660,11 +734,35 @@ elseif Config.FarmMode == "Best" then
             task.wait(0.5)
         
             teleport(
-                CFrame.new(307, 450, 1510) *
+                CFrame.new(307, 430, 1510) *
                 CFrame.new(math.random(-5,5), math.random(-5,5), math.random(-5,5))
             )
+            task.wait(0.5)
         end
         task.wait()
         Hatch2()
+    end
+elseif Config.FarmMode == "Index" then
+    teleport(Vector3.new(405, -14, 152))
+
+    repeat
+        teleport(Vector3.new(405, -14, 152))
+        task.wait(0.2)
+
+        local nearestEgg = GetNearestEggModelByName("Common Egg")
+        if nearestEgg then
+            ReplicatedStorage.Remotes.Functions.BuyEgg:InvokeServer(nearestEgg, 100)
+        end
+
+    until TableCount(IndexedPets) > 0
+    while true do
+        buyFromMerchant()
+        task.wait()
+
+        local nearestEgg, primaryParta = GetNearestEggModelByName(BestEggIndex)
+        if nearestEgg then
+            teleport(primaryParta.Position)
+            ReplicatedStorage.Remotes.Functions.BuyEgg:InvokeServer(nearestEgg, 100)
+        end
     end
 end
