@@ -1,5 +1,5 @@
 local Default_Config = {
-    ["FarmMode"] = "Best",
+    ["FarmMode"] = "Index",
     --[[
         FarmModes
             Collectibles: will hatch Mushroom Egg and when not hatchable the nearest
@@ -84,6 +84,10 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Workspace = game:GetService("Workspace")
 local VirtualUser = game:GetService("VirtualUser")
+local Lighting = game:GetService("Lighting")
+local SoundService = game:GetService("SoundService")
+local RunService = game:GetService("RunService")
+
 
 local Libraries = ReplicatedStorage:WaitForChild("Libraries")
 local MerchantData = require(Libraries:WaitForChild("MerchantData"))
@@ -94,6 +98,8 @@ local player = Players.LocalPlayer
 local stats = player.clanstats
 local collectiblesFolder = Workspace:FindFirstChild("_").CollectiblesClient
 local eggsFolder = Workspace:FindFirstChild("_").Eggs
+eggsFolder.Parent = player
+
 local PetData = require(ReplicatedStorage.Libraries.PetData)
 local MERCHANT_POS = Vector3.new(1011, 100, 549)
 local QUEST_PRIORITY = {"Collectibles", "HatchEggs", "Legendaries"}
@@ -116,7 +122,6 @@ SafePart.Anchored = true
 SafePart.CanCollide = true
 SafePart.Name = "SafePart"
 
--- Decal hinzufügen
 local decal = Instance.new("Decal")
 decal.Texture = "rbxassetid://94472596251951"
 decal.Face = Enum.NormalId.Top
@@ -658,6 +663,24 @@ for _, obj in ipairs(objects) do
         obj:Destroy()
     end
 end
+
+Lighting.Brightness = 0
+Lighting.GlobalShadows = false
+Lighting.FogEnd = math.huge
+Lighting.ClockTime = 0
+Lighting.Ambient = Color3.new(1, 1, 1)
+Lighting.OutdoorAmbient = Color3.new(1, 1, 1)
+Lighting.ShadowSoftness = 0
+
+SoundService.RespectFilteringEnabled = true
+SoundService:SetListener(Enum.ListenerType.Camera)
+SoundService.AmbientReverb = Enum.ReverbType.NoReverb
+settings().Rendering.QualityLevel = Enum.QualityLevel.Level01
+
+pcall(function()
+	RunService:UnbindFromRenderStep("Humanoid")
+	RunService:UnbindFromRenderStep("Animation")
+end)
 
 task.spawn(function()
     while true do
