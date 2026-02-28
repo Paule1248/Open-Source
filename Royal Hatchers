@@ -76,8 +76,6 @@ local UptimeLabel = UI:AddStat("Uptime", "00:00:00")
 local StatusLabel = UI:AddStat("Status", "Idle")
 UI:AddSeperator()
 local GemStat  = UI:AddStat("Gems", "0")
-local ClanPointsStat = UI:AddStat("Clan Points", "0")
-local CollectiblesPerSecondStat = UI:AddStat("Collectibles/s", "0")
 local HatchSpeedStat = UI:AddStat("Hatch Speed", "0")
 
 local Players = game:GetService("Players")
@@ -103,7 +101,6 @@ UpgradesFolder.Parent = player
 local PetData = require(ReplicatedStorage.Libraries.PetData)
 local MERCHANT_POS = Vector3.new(1011, 100, 549)
 local EventMerchant = Vector3.new(-935, 31, -158)
-local QUEST_PRIORITY = {"Collectibles", "HatchEggs", "Legendaries"}
 local BestIslandData = {
     "MysticalForest",
     CFrame.new(307, 459, 1510)
@@ -113,8 +110,7 @@ local BestEggIndex = {}
 local BannedEggs = {"Valentines Egg", "Exclusive Pets","100K Egg","Release Egg","Lovely Egg", "500K Egg",
     "Season 1 Egg"
 }
-local CollectiblesLoaded = {}
-local CollectiblesPerSecond = 0
+
 local LastHatchTime = tick()
 
 local SafePart = Instance.new("Part", workspace)
@@ -128,28 +124,9 @@ decal.Texture = "rbxassetid://94472596251951"
 decal.Face = Enum.NormalId.Top
 decal.Parent = SafePart
 
-local LoadCollectibles = game:GetService("ReplicatedStorage").Remotes.Events.LoadCollectibles
-local CollectCollectible = game:GetService("ReplicatedStorage").Remotes.Functions.CollectCollectible
 local Click = game:GetService("ReplicatedStorage").Remotes.Functions.Click
 local UpdateIndex = game:GetService("ReplicatedStorage").Remotes.Events.UpdateIndex
-
-
-local VisualFolder = Instance.new("Folder", Workspace)
-
-LoadCollectibles.OnClientEvent:Connect(function(collectibles)
-    for _, collectible in pairs(collectibles) do
-        CollectiblesLoaded[collectible.ID] = collectible.Pivot
-        local part = Instance.new("Part")
-        part.Size = Vector3.new(5, 5, 5)
-        part.Transparency = 0
-        part.Anchored = true
-        part.CanCollide = false
-        part.CFrame = collectible.Pivot
-        part.Parent = VisualFolder
-        part.Name = collectible.ID
-        part.Color = Color3.new(0.007843, 0.694117, 0.658823)
-    end
-end)
+local ClaimAllSeason = game:GetService("ReplicatedStorage").Remotes.Functions.ClaimAllSeason
 
 local function GetEggFromPet(petName)
     for eggName, data in pairs(EggData) do
@@ -215,35 +192,6 @@ task.spawn(function()
     while task.wait(120) do VirtualUser:CaptureController(); VirtualUser:ClickButton2(Vector2.new()) end
 end)
 
-
-local Event = game:GetService("ReplicatedStorage").Remotes.Functions.CollectCollectible
-local mtHook; mtHook = hookmetamethod(game, "__namecall", function(...)
-	local self = ...
-
-	if rawequal(self, Event) and getnamecallmethod() == "InvokeServer" then
-		local Args = table.pack(...)
-		
-		local Result = table.pack(
-			mtHook(self, Args[2])
-		)
-
-        if Result[1] then
-            CollectiblesLoaded[Args[2]] = nil
-            local part = VisualFolder:FindFirstChild(Args[2])
-            if part then
-                part:Destroy()
-            end
-            CollectiblesPerSecond = CollectiblesPerSecond + 1
-            task.delay(1, function()
-                CollectiblesPerSecond = CollectiblesPerSecond - 1
-            end)
-        end
-
-		return table.unpack(Result, 1, Result.n)
-	end
-
-	return mtHook(...)
-end)
 
 task.wait()
 
@@ -560,7 +508,8 @@ local areaNames = {
     "Other",
     "Union",
     "Icosphere.001",
-    "Cylinder.003"
+    "Cylinder.003",
+    "Maps"
 }
 
 for _, name in ipairs(areaNames) do
@@ -578,7 +527,6 @@ end
 
 local objectNames = {
     "BountyBoards",
-    "Collectibles",
     "Debris",
     "EggDecor",
     "ItemDropsDebris",
@@ -628,9 +576,6 @@ task.spawn(function()
         task.spawn(function()
             GemStat:Update(Utils:FormatNumber(player.leaderstats.Gems.Value))
         end)
-        task.spawn(function()
-            CollectiblesPerSecondStat:Update(Utils:FormatNumber(CollectiblesPerSecond))
-        end)
         Click:InvokeServer(
             nil
         )
@@ -645,7 +590,8 @@ task.spawn(function()
                 nil
             )
         end)
-        task.wait()  
+        task.wait() 
+        ClaimAllSeason:InvokeServer()
     end
 end)
 
