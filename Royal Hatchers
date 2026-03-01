@@ -534,7 +534,7 @@ if underscoreFolder then
     for _, name in ipairs(objectNames) do
         local obj = underscoreFolder:FindFirstChild(name)
         if obj then
-            -- obj:Destroy()
+            obj:Destroy()
         end
     end
 end
@@ -634,30 +634,52 @@ elseif Config.FarmMode == "Index" then
         end
     end
 elseif Config.FarmMode == "Event" then
-    pcall(function()
-        ReplicatedStorage.Remotes.Functions.TeleportIsland:InvokeServer("1MEvent", "TelportTo")
-    end)
-    local hrp = getHRP()
-    SafePart.Position = hrp.Position - Vector3.new(0,3,0)
+    local function teleportToEvent()
+        pcall(function()
+            ReplicatedStorage.Remotes.Functions.TeleportIsland:InvokeServer("1MEvent", "TelportTo")
+        end)
+    end
+
+    teleportToEvent()
 
     task.wait(0.5)
 
+    local hrp = getHRP()
+    if not hrp then return end
+
+    SafePart.Position = hrp.Position - Vector3.new(0, 3, 0)
+
     local position = Vector3.new(-873.42, 37.18, -135.11)
 
-    local randomLook = Vector3.new(
-    	math.random(-100,100)/100,
-    	0,
-    	math.random(-100,100)/100
-    ).Unit
+    while task.wait() do
+        hrp = getHRP()
+        if not hrp then continue end
 
-    while true do
         buyFromMerchant()
-        teleport(
-           CFrame.new(position, position + randomLook)
-        )
 
-        HatchEgg(GetNearestEggModelByName("1M Egg"))
+        -- FIX: Richtige Distance Berechnung
+        if (hrp.Position - position).Magnitude > 20 then
+            teleportToEvent()
+            task.wait(0.2)
 
-        task.wait()
+            hrp = getHRP()
+            if hrp then
+                SafePart.Position = hrp.Position - Vector3.new(0,3,0)
+            end
+        end
+
+        -- FIX: Random Look jedes Mal neu setzen
+        local randomLook = Vector3.new(
+            math.random(-100,100)/100,
+            0,
+            math.random(-100,100)/100
+        ).Unit
+
+        teleport(CFrame.new(position, position + randomLook))
+
+        local egg = GetNearestEggModelByName("1M Egg")
+        if egg then
+            HatchEgg(egg)
+        end
     end
 end
