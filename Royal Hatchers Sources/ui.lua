@@ -53,7 +53,7 @@ local SettingsTab = Window:CreateTab("⚙️ Settings",   4483362458)
 
 Rayfield:Notify({
     Title = "Royal Hatchers",
-    Content = "Script geladen! Konfiguriere unten und starte den Farm.",
+    Content = "Script loaded! Configure below and start the farm.",
     Duration = 5,
     Image = 4483362458,
 })
@@ -316,34 +316,25 @@ end
 
 
 local function getItemCost(itemFrame)
-    local priceAttr    = itemFrame:GetAttribute("Price")
-    local currencyAttr = itemFrame:GetAttribute("Currency") or "Gems"
+    local priceLabel = itemFrame:FindFirstChild("Buy").Frame.TextLabel
 
-    if priceAttr and type(priceAttr) == "number" then
-        return { price = priceAttr, currency = currencyAttr }
-    end
 
-    local priceLabel = itemFrame:FindFirstChild("Price")
-         and itemFrame:FindFirstDescendant("Price")
-
-    if priceLabel and priceLabel:IsA("TextLabel") then
-        local text = priceLabel.Text or ""
-        local numStr = text:gsub("[^%d,]", ""):gsub(",", "")
-        local price  = tonumber(numStr)
-
-        -- Währung aus dem Text ableiten
-        local currency = "Gems"
-        if text:lower():find("coin") then currency = "Coins"
-        elseif text:lower():find("gem")  then currency = "Gems"  end
-
-        if price then
-            return { price = price, currency = currency }
+    if priceLabel then
+        if priceLabel:IsA("TextLabel") then
+            local text = priceLabel.Text or ""
+            local numStr = text:gsub("[^%d,]", ""):gsub(",", "")
+            local price = tonumber(numStr)
+            local currency = "Gems"
+            if text:lower():find("coin") then currency = "Coins" end
+            if price then
+                return { price = price, currency = currency }
+            end
         end
     end
 
     local costAttr = itemFrame:GetAttribute("Cost")
     if costAttr and type(costAttr) == "number" then
-        return { price = costAttr, currency = currencyAttr }
+        return { price = costAttr, currency = "Gems" }
     end
 
     return nil
@@ -352,23 +343,22 @@ end
 local function canAfford(itemFrame)
     local cost = getItemCost(itemFrame)
     if not cost then
-        return false, "Preis nicht lesbar"
+        return false
     end
 
     local balance = getPlayerCurrency(cost.currency)
     if balance < cost.price then
-        return false, string.format("Zu wenig %s (%d/%d)", cost.currency, balance, cost.price)
+        return false
     end
 
     return true
 end
 
--- ==================== BUY FROM MERCHANT (verbessert) ====================
-
 local function buyFromMerchant()
     if not Config["Merchant"] then return end
     for merchantID, data in pairs(MerchantData) do
-        if data.IslandRequired and not HasIsland(data.IslandRequired) then
+        print("AUTO MERCHATN DEBUG: ", merchantID, data, data.IslandRequired,HasIsland(data.IslandRequired) )
+        if not data.IslandRequired and not HasIsland(data.IslandRequired) then
             continue
         end
         
@@ -387,7 +377,6 @@ local function buyFromMerchant()
                 for _, itemFrame in pairs(items) do
                     if itemFrame:IsA("Frame") then
                         local stock = itemFrame:GetAttribute("Stock") or 0
-                        
                         if stock > 0 and canAfford(itemFrame) then
                             hasStock = true
                             break
@@ -619,7 +608,7 @@ task.spawn(function()
         task.spawn(function() Click:InvokeServer(nil) end)
         task.spawn(function()
             ClaimAllSeason:InvokeServer()
-            RestartPass:InvokeServer()            
+            RestartPass:InvokeServer()
         end)
     end
 end)
