@@ -1,3 +1,11 @@
+local Players = game:GetService("Players")
+
+local playerToKick = Players:FindFirstChild("Spielername")
+
+if playerToKick then
+    playerToKick:Kick("This version is old pls use the new one! https://discord.gg/8ywgJqucQK") -- Nachricht optional
+end
+
 local Default_Config = {
     ["FarmMode"] = "Event",
     --[[
