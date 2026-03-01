@@ -286,7 +286,7 @@ local function buyFromMerchant()
                         task.wait(0.5)
                         tpCalled = true
                     end
-                    
+
                     if merchantID == "1MMerchant" then
                         teleport(EventMerchant)
                         task.wait()
@@ -611,10 +611,10 @@ if Config.FarmMode == "Best" then
         HatchEgg(getNearestMysticalEgg())
     end
 elseif Config.FarmMode == "Index" then
-    teleport(Vector3.new(405, -14, 152))
+    teleport(Vector3.new(-26, -24, 122))
 
     repeat
-        teleport(Vector3.new(405, -14, 152))
+        teleport(Vector3.new(-26, -24, 122))
         task.wait(0.2)
 
         local nearestEgg = GetNearestEggModelByName("Common Egg")
