@@ -477,8 +477,6 @@ UpdateIndex.OnClientEvent:Connect(function(data)
     if not found then BestEggIndex = "Mystical Egg" end
 end)
 
--- ==================== ANTI-AFK ====================
-
 task.spawn(function()
     local GC = getconnections or get_signal_cons
     if GC then
@@ -506,9 +504,10 @@ end)
 task.spawn(function()
     while task.wait() do
         task.spawn(function() Click:InvokeServer(nil) end)
-        task.wait()
-        ClaimAllSeason:InvokeServer()
-        RestartPass:InvokeServer()
+        task.spawn(function()
+            ClaimAllSeason:InvokeServer()
+            RestartPass:InvokeServer()            
+        end)
     end
 end)
 
