@@ -1,9 +1,11 @@
 local Default_Config = {
-    ["FarmMode"] = "Event",
+    ["FarmMode"] = "Egg",
     ["TeleportMethod"] = "Tween",
     ["Webhook"] = "",
     ["WebhookID"] = "",
-    ["Merchant"] = true,
+    ["Merchant"] = false,
+    ["Upgrades"] = false,
+    ["Egg"] = "Celebration Egg",
 }
 
 local function mergeConfig(default, user)
@@ -68,13 +70,27 @@ local HatchSpeedLabel  = MainTab:CreateLabel("⚡ Hatch Speed: --")
 
 FarmTab:CreateSection("🥚 Farm Settings")
 FarmTab:CreateDropdown({
-    Name = "Farm Modus",
-    Options = {"Event", "Best", "Index"},
+    Name = "Farm Mode",
+    Options = {"Event", "Best", "Index", "Egg"},
     CurrentOption = {Config.FarmMode},
     Flag = "FarmMode",
     Callback = function(option)
         Config.FarmMode = option[1] or option
         Rayfield:Notify({ Title = "Farm Modus", Content = "Modus gesetzt: " .. Config.FarmMode, Duration = 3 })
+    end,
+})
+local AllEggs = {}
+for Name, _ in require(game.ReplicatedStorage:WaitForChild("Libraries"):WaitForChild("EggData")) do
+    table.insert(AllEggs,Name)
+end
+
+FarmTab:CreateDropdown({
+    Name = "Egg to Hatch (Egg Farm Method)",
+    Options = AllEggs,
+    CurrentOption = {Config.Egg},
+    Flag = "SelectedEgg",
+    Callback = function(option)
+        Config.Egg = option[1] or option
     end,
 })
 
@@ -84,9 +100,17 @@ FarmTab:CreateToggle({
     Flag = "Merchant",
     Callback = function(value)
         Config.Merchant = value
-        Rayfield:Notify({ Title = "Merchant", Content = value and "Merchant aktiviert." or "Merchant deaktiviert.", Duration = 2 })
     end,
 })
+FarmTab:CreateToggle({
+    Name = "Auto Buy Upgrades",
+    CurrentValue = Config.Merchant,
+    Flag = "Merchant",
+    Callback = function(value)
+        Config.Upgrades = value
+    end,
+})
+
 
 FarmTab:CreateSection("🔧 Control")
 local FarmRunning = false
@@ -183,6 +207,7 @@ local MerchantData = require(Libraries:WaitForChild("MerchantData"))
 local ItemData     = require(Libraries:WaitForChild("ItemData"))
 local EggData      = require(Libraries:WaitForChild("EggData"))
 local PetData      = require(ReplicatedStorage.Libraries.PetData)
+local UpgradesData = require(Libraries.UpgradesData)
 
 local player         = Players.LocalPlayer
 local eggsFolder     = workspace:FindFirstChild("_").Eggs
@@ -190,6 +215,7 @@ eggsFolder.Parent    = player
 local UpgradesFolder = workspace:FindFirstChild("_").Upgrades
 UpgradesFolder.Parent = player
 local Islands = require(player.PlayerScripts.Modules.Islands)
+local Upgrades = require(player.PlayerScripts.Modules.Upgrades)
 
 local MERCHANT_POS  = Vector3.new(1011, 100, 549)
 local EventMerchant = Vector3.new(-935, 31, -158)
@@ -198,6 +224,8 @@ local BestIslandData = {"MysticalForest", CFrame.new(307, 459, 1510)}
 local IndexedPets  = {}
 local BestEggIndex = {}
 local BannedEggs   = {"Valentines Egg","Exclusive Pets","100K Egg","Release Egg","Lovely Egg","500K Egg","Season 1 Egg"}
+local unlockedUpgrades = {}
+local IndexSetup = false
 
 local LastHatchTime    = tick()
 local StartTime        = os.time()
@@ -207,6 +235,7 @@ local Click          = ReplicatedStorage.Remotes.Functions.Click
 local UpdateIndex    = ReplicatedStorage.Remotes.Events.UpdateIndex
 local ClaimAllSeason = ReplicatedStorage.Remotes.Functions.ClaimAllSeason
 local RestartPass    = ReplicatedStorage.Remotes.Functions.RestartPass
+local BuyUpgrade     = ReplicatedStorage.Remotes.Functions.BuyUpgrade
 
 local SafePart = Instance.new("Part", workspace)
 SafePart.Size = Vector3.new(100,1,100)
@@ -299,6 +328,7 @@ local function teleport(target)
     end
 end
 
+
 local clickEvents = {"MouseButton1Click","MouseButton2Click","Activated","MouseButton1Down"}
 
 -- ==================== CURRENCY HELPERS ====================
@@ -340,6 +370,20 @@ local function getItemCost(itemFrame)
     return nil
 end
 
+local function HasUpgrade(Name)
+    local ownedupgrades = debug.getupvalue(Upgrades.Init, 9)
+    for upgradeName, upgradeObj in pairs(ownedupgrades) do
+        local ui = upgradeObj.Stand and upgradeObj.Stand.Base and upgradeObj.Stand.Base.UI
+        if ui then
+            if ui.Price.Text == "Owned" and upgradeName == Name then
+                return true
+            end
+        end
+    end
+    return false
+end
+
+
 local function canAfford(itemFrame)
     local cost = getItemCost(itemFrame)
     if not cost then
@@ -352,6 +396,38 @@ local function canAfford(itemFrame)
     end
 
     return true
+end
+
+local function BuyAllUpgradesAndIslands()
+    if not Config["Upgrades"] then
+        return
+    end
+    for upgradeName, data in pairs(UpgradesData) do
+        if not HasUpgrade(upgradeName) and HasIsland(data.IslandRequired) and not unlockedUpgrades[upgradeName] then
+            local playerCurrency = getPlayerCurrency(data.Cost[3])
+            if playerCurrency >= data.Cost[4] then
+                StatusLabel:Update("Going to Upgrade: " .. upgradeName)
+                pcall(function()
+                    ReplicatedStorage.Remotes.Functions.TeleportIsland:InvokeServer(data.IslandRequired, "TelportTo")
+                end)
+                wait(0.1)
+                SafePart.Position = getHRP().Position - Vector3.new(0,3,0)
+                teleport(UpgradesFolder:FindFirstChild(upgradeName).Base.CFrame)
+                wait(0.1)
+                local success = BuyUpgrade:InvokeServer(upgradeName)
+                if success then
+                    unlockedUpgrades[upgradeName] = true
+                    StatusLabel:Update("Successfully purchased upgrade: " .. upgradeName)
+                else
+                    StatusLabel:Update("Failed purchasing upgrade: " .. upgradeName)
+                end
+                task.wait(1)
+                pcall(function()
+                    ReplicatedStorage.Remotes.Functions.TeleportIsland:InvokeServer(data.IslandRequired, "TeleportBack")
+                end)
+            end
+        end
+    end
 end
 
 local function buyFromMerchant()
@@ -618,8 +694,10 @@ task.spawn(function()
         task.wait()
         if not FarmRunning then task.wait(); continue end
 
+        buyFromMerchant()
+        BuyAllUpgradesAndIslands()
+
         if Config.FarmMode == "Best" then
-            buyFromMerchant()
             if (getHRP().Position - BestIslandData[2].Position).Magnitude >= 35 then
                 pcall(function() ReplicatedStorage.Remotes.Functions.TeleportIsland:InvokeServer(BestIslandData[1], "TelportTo") end)
                 local hrp = getHRP()
@@ -631,37 +709,38 @@ task.spawn(function()
             HatchEgg(getNearestMysticalEgg())
 
         elseif Config.FarmMode == "Index" then
-            teleport(Vector3.new(-26, -24, 122))
-            repeat
+            if not IndexSetup then
+                pcall(function() ReplicatedStorage.Remotes.Functions.TeleportIsland:InvokeServer("1MEvent", "TeleportBack") end)
                 teleport(Vector3.new(-26, -24, 122))
-                task.wait(0.2)
-                local nearestEgg = GetNearestEggModelByName("Common Egg")
-                if nearestEgg then ReplicatedStorage.Remotes.Functions.BuyEgg:InvokeServer(nearestEgg, 100) end
-            until TableCount(IndexedPets) > 0
-            buyFromMerchant()
+                repeat
+                    teleport(Vector3.new(-26, -24, 122))
+                    task.wait(0.2)
+                    local nearestEgg = GetNearestEggModelByName("Common Egg")
+                    if nearestEgg then ReplicatedStorage.Remotes.Functions.BuyEgg:InvokeServer(nearestEgg, 100) end
+                until TableCount(IndexedPets) > 0
+                IndexSetup = true
+            end
             task.wait()
             local nearestEgg, primaryPart = GetNearestEggModelByName(BestEggIndex)
             if nearestEgg then
                 teleport(primaryPart.Position)
-                ReplicatedStorage.Remotes.Functions.BuyEgg:InvokeServer(nearestEgg, 100)
+                HatchEgg(nearestEgg)
             end
-
         elseif Config.FarmMode == "Event" then
             local function teleportToEvent()
-                pcall(function() ReplicatedStorage.Remotes.Functions.TeleportIsland:InvokeServer("1MEvent", "TelportTo") end)
+                pcall(function() ReplicatedStorage.Remotes.Functions.TeleportIsland:InvokeServer("1MEvent", "TeleportTo") end)
             end
 
             local position = Vector3.new(-873.42, 37.18, -135.11)
             local hrp = getHRP()
-            if not hrp then task.wait() continue end
-
-            buyFromMerchant()
+            if not hrp then task.wait(); continue end
 
             if (hrp.Position - position).Magnitude > 20 then
                 teleportToEvent()
                 task.wait(0.2)
                 hrp = getHRP()
                 if hrp then SafePart.Position = hrp.Position - Vector3.new(0,3,0) end
+                task.wait(0.2)
             end
 
             local randomLook = Vector3.new(math.random(-100,100)/100, 0, math.random(-100,100)/100).Unit
@@ -669,6 +748,27 @@ task.spawn(function()
 
             local egg = GetNearestEggModelByName("1M Egg")
             if egg then HatchEgg(egg) end
+        elseif Config.FarmMode == "Egg" and Config.Egg ~= "" then
+            if EggData[Config.Egg] and EggData[Config.Egg].IslandRequired then
+                if not HasIsland(EggData[Config.Egg].IslandRequired) then
+                    continue
+                end
+            end
+            local nearestEgg, primaryPart = GetNearestEggModelByName(Config.Egg)
+            local hrp = getHRP()
+            if hrp and primaryPart then
+                if (hrp.Position - primaryPart.Position).Magnitude > 30 then
+                    if EggData[Config.Egg].IslandRequired then
+                        game.ReplicatedStorage.Remotes.Functions.TeleportIsland:InvokeServer(EggData[Config.Egg].IslandRequired, "TelportTo")
+                    else
+                        game.ReplicatedStorage.Remotes.Functions.TeleportIsland:InvokeServer("1MEvent", "TeleportBack")
+                    end
+                    task.wait(0.2)
+                end
+            end
+            local nearestEgg, primaryPart = GetNearestEggModelByName(Config.Egg)
+            teleport(primaryPart.Position)
+            HatchEgg(nearestEgg)
         end
     end
 end)
