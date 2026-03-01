@@ -1,9 +1,10 @@
 local Default_Config = {
-    ["FarmMode"] = "Event",
+    ["FarmMode"] = "Index",
     ["TeleportMethod"] = "Tween",
     ["Webhook"] = "",
     ["WebhookID"] = "",
     ["Merchant"] = true,
+    ["Egg"] = "Celebration Egg",
 }
 
 local function mergeConfig(default, user)
@@ -21,8 +22,6 @@ end
 
 local Config = (getgenv and getgenv().Config) or _G.Config or {}
 Config = mergeConfig(Default_Config, Config)
-
--- ==================== UILIB SETUP ====================
 
 local success, content = pcall(game.HttpGet, game, "https://raw.githubusercontent.com/Paule1248/Open-Source/refs/heads/main/Utils/Lib%20New")
 local UILib
@@ -54,22 +53,17 @@ else
     return
 end
 
--- ==================== UI ERSTELLEN ====================
-
 local UI = UILib:CreateWindow("Royal Hatchers (.gg/8ywgJqucQK)")
 
 local StartTime        = os.time()
 local StartEggsHatched = game:GetService("Players").LocalPlayer.leaderstats.Eggs.Value
 
--- Stats
 local SessionEggsStat = UI:AddStat("Session Eggs", "0")
 local UptimeLabel     = UI:AddStat("Uptime",        "00:00:00")
 local StatusLabel     = UI:AddStat("Status",        "Idle")
 UI:AddSeperator()
 local GemStat         = UI:AddStat("Gems",          "0")
 local HatchSpeedStat  = UI:AddStat("Hatch Speed",   "--")
-
--- ==================== CORE SERVICES ====================
 
 local Players           = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -80,10 +74,11 @@ local RunService        = game:GetService("RunService")
 local TweenService      = game:GetService("TweenService")
 
 local Libraries    = ReplicatedStorage:WaitForChild("Libraries")
-local MerchantData = require(Libraries:WaitForChild("MerchantData"))
-local ItemData     = require(Libraries:WaitForChild("ItemData"))
-local EggData      = require(Libraries:WaitForChild("EggData"))
-local PetData      = require(ReplicatedStorage.Libraries.PetData)
+local MerchantData = require(Libraries.MerchantData)
+local ItemData     = require(Libraries.ItemData)
+local EggData      = require(Libraries.EggData)
+local PetData      = require(Libraries.PetData)
+local UpgradesData = require(Libraries.UpgradesData)
 
 local player          = Players.LocalPlayer
 local eggsFolder      = workspace:FindFirstChild("_").Eggs
@@ -91,6 +86,7 @@ eggsFolder.Parent     = player
 local UpgradesFolder  = workspace:FindFirstChild("_").Upgrades
 UpgradesFolder.Parent = player
 local Islands = require(player.PlayerScripts.Modules.Islands)
+local Upgrades = require(player.PlayerScripts.Modules.Upgrades)
 
 local MERCHANT_POS   = Vector3.new(1011, 100, 549)
 local EventMerchant  = Vector3.new(-935, 31, -158)
@@ -99,6 +95,8 @@ local BestIslandData = {"MysticalForest", CFrame.new(307, 459, 1510)}
 local IndexedPets  = {}
 local BestEggIndex = {}
 local BannedEggs   = {"Valentines Egg","Exclusive Pets","100K Egg","Release Egg","Lovely Egg","500K Egg","Season 1 Egg"}
+local unlockedUpgrades = {}
+local IndexSetup = false
 
 local LastHatchTime = tick()
 
@@ -106,6 +104,7 @@ local Click          = ReplicatedStorage.Remotes.Functions.Click
 local UpdateIndex    = ReplicatedStorage.Remotes.Events.UpdateIndex
 local ClaimAllSeason = ReplicatedStorage.Remotes.Functions.ClaimAllSeason
 local RestartPass    = ReplicatedStorage.Remotes.Functions.RestartPass
+local BuyUpgrade     = ReplicatedStorage.Remotes.Functions.BuyUpgrade
 
 -- SafePart
 local SafePart = Instance.new("Part", workspace)
@@ -134,22 +133,22 @@ pcall(function()
     RunService:UnbindFromRenderStep("Animation")
 end)
 
-local areaNames = {"Spawn","Autumn","Frost","Jungle","New Areas","New New Areas","Other","Union","Icosphere.001","Cylinder.003","Maps"}
-for _, name in ipairs(areaNames) do
-    local area = workspace:FindFirstChild(name)
-    if area and area:IsA("Model") then area:Destroy() end
-end
-for _, child in ipairs(workspace:GetChildren()) do
-    if child:IsA("Model") and not table.find(areaNames, child.Name) then child:Destroy() end
-end
-local objectNames = {"BountyBoards","Debris","EggDecor","ItemDropsDebris","Leaderboards","Pets","Walkups","Portals"}
-local underscoreFolder = workspace:FindFirstChild("_")
-if underscoreFolder then
-    for _, name in ipairs(objectNames) do
-        local obj = underscoreFolder:FindFirstChild(name)
-        if obj then obj:Destroy() end
-    end
-end
+-- local areaNames = {"Spawn","Autumn","Frost","Jungle","New Areas","New New Areas","Other","Union","Icosphere.001","Cylinder.003","Maps"}
+-- for _, name in ipairs(areaNames) do
+--     local area = workspace:FindFirstChild(name)
+--     if area and area:IsA("Model") then area:Destroy() end
+-- end
+-- for _, child in ipairs(workspace:GetChildren()) do
+--     if child:IsA("Model") and not table.find(areaNames, child.Name) then child:Destroy() end
+-- end
+-- local objectNames = {"BountyBoards","Debris","EggDecor","ItemDropsDebris","Leaderboards","Pets","Walkups","Portals"}
+-- local underscoreFolder = workspace:FindFirstChild("_")
+-- if underscoreFolder then
+--     for _, name in ipairs(objectNames) do
+--         local obj = underscoreFolder:FindFirstChild(name)
+--         if obj then obj:Destroy() end
+--     end
+-- end
 
 local function GetEggFromPet(petName)
     for eggName, data in pairs(EggData) do
@@ -164,6 +163,19 @@ local function HasIsland(Name)
     local islands = debug.getupvalue(Islands.updatePortal, 1)
     for islandName, unlocked in pairs(islands) do
         if unlocked == true and islandName == Name then return true end
+    end
+    return false
+end
+
+local function HasUpgrade(Name)
+    local ownedupgrades = debug.getupvalue(Upgrades.Init, 9)
+    for upgradeName, upgradeObj in pairs(ownedupgrades) do
+        local ui = upgradeObj.Stand and upgradeObj.Stand.Base and upgradeObj.Stand.Base.UI
+        if ui then
+            if ui.Price.Text == "Owned" and upgradeName == Name then
+                return true
+            end
+        end
     end
     return false
 end
@@ -204,21 +216,13 @@ end
 
 local clickEvents = {"MouseButton1Click","MouseButton2Click","Activated","MouseButton1Down"}
 
--- ==================== CURRENCY HELPERS ====================
-
 local function getPlayerCurrency(currencyName)
-    local ls = player:FindFirstChild("leaderstats")
-    if not ls then return 0 end
-    local stat = ls:FindFirstChild(currencyName)
-    return stat and stat.Value or 0
+    return (player:FindFirstChild("leaderstats") and player.leaderstats:FindFirstChild(currencyName) or 
+            player:FindFirstChild("otherstats") and player.otherstats:FindFirstChild(currencyName) or {Value = 0}).Value
 end
 
 local function getItemCost(itemFrame)
-    local currencyAttr = "Gems"
-
     local priceLabel = itemFrame:FindFirstChild("Buy").Frame.TextLabel
-
-
     if priceLabel then
         if priceLabel:IsA("TextLabel") then
             local text = priceLabel.Text or ""
@@ -234,7 +238,7 @@ local function getItemCost(itemFrame)
 
     local costAttr = itemFrame:GetAttribute("Cost")
     if costAttr and type(costAttr) == "number" then
-        return { price = costAttr, currency = currencyAttr }
+        return { price = costAttr, currency = "Gems" }
     end
 
     return nil
@@ -248,6 +252,35 @@ local function canAfford(itemFrame)
         return false, string.format("Zu wenig %s (%d/%d)", cost.currency, balance, cost.price)
     end
     return true
+end
+
+local function BuyAllUpgradesAndIslands()
+    for upgradeName, data in pairs(UpgradesData) do
+        if not HasUpgrade(upgradeName) and HasIsland(data.IslandRequired) and not unlockedUpgrades[upgradeName] then
+            local playerCurrency = getPlayerCurrency(data.Cost[3])
+            if playerCurrency >= data.Cost[4] then
+                StatusLabel:Update("Going to Upgrade: " .. upgradeName)
+                pcall(function()
+                    ReplicatedStorage.Remotes.Functions.TeleportIsland:InvokeServer(data.IslandRequired, "TelportTo")
+                end)
+                wait(0.1)
+                SafePart.Position = getHRP().Position - Vector3.new(0,3,0)
+                teleport(UpgradesFolder:FindFirstChild(upgradeName).Base.CFrame)
+                wait(0.1)
+                local success = BuyUpgrade:InvokeServer(upgradeName)
+                if success then
+                    unlockedUpgrades[upgradeName] = true
+                    StatusLabel:Update("Successfully purchased upgrade: " .. upgradeName)
+                else
+                    StatusLabel:Update("Failed purchasing upgrade: " .. upgradeName)
+                end
+                task.wait(1)
+                pcall(function()
+                    ReplicatedStorage.Remotes.Functions.TeleportIsland:InvokeServer(data.IslandRequired, "TeleportBack")
+                end)
+            end
+        end
+    end
 end
 
 local function buyFromMerchant()
@@ -392,8 +425,6 @@ local function getNearestMysticalEgg()
     return nearestEgg
 end
 
--- ==================== WEBHOOK ====================
-
 local function SendMessageWithEmbedAndPing(embed)
     local data = {
         ["content"] = "<@" .. Config.WebhookID .. ">",
@@ -449,16 +480,16 @@ local function HatchEgg(Model)
     end)
 end
 
--- ==================== INDEX UPDATE ====================
-
-UpdateIndex.OnClientEvent:Connect(function(data)
+UpdateIndex.OnClientEvent:Connect(function(data)    
     local found = false
     IndexedPets = {}
+    
     for type, pets in pairs(data) do
         for _, petName in ipairs(pets) do
             IndexedPets[type .. " " .. petName] = true
         end
     end
+    
     local unknownCount = {}
     for petName, pdata in pairs(PetData) do
         if (not IndexedPets["Normal " .. petName] or not IndexedPets["Shiny " .. petName])
@@ -469,12 +500,22 @@ UpdateIndex.OnClientEvent:Connect(function(data)
             end
         end
     end
+
     local maxCount = 0
-    for _, count in pairs(unknownCount) do if count > maxCount then maxCount = count end end
-    for egg, count in pairs(unknownCount) do
-        if count == maxCount then BestEggIndex = egg; found = true end
+    for _, count in pairs(unknownCount) do
+        if count > maxCount then maxCount = count end
     end
-    if not found then BestEggIndex = "Mystical Egg" end
+
+    for egg, count in pairs(unknownCount) do
+        if count == maxCount then
+            BestEggIndex = egg
+            found = true
+        end
+    end
+
+    if not found then
+        BestEggIndex = "Mystical Egg"
+    end
 end)
 
 task.spawn(function()
@@ -515,9 +556,10 @@ end)
 task.spawn(function()
     while true do
         task.wait()
+        buyFromMerchant()
+        BuyAllUpgradesAndIslands()
 
         if Config.FarmMode == "Best" then
-            buyFromMerchant()
             if (getHRP().Position - BestIslandData[2].Position).Magnitude >= 35 then
                 pcall(function() ReplicatedStorage.Remotes.Functions.TeleportIsland:InvokeServer(BestIslandData[1], "TelportTo") end)
                 local hrp = getHRP()
@@ -529,31 +571,31 @@ task.spawn(function()
             HatchEgg(getNearestMysticalEgg())
 
         elseif Config.FarmMode == "Index" then
-            teleport(Vector3.new(-26, -24, 122))
-            repeat
+            if not IndexSetup then
+                pcall(function() ReplicatedStorage.Remotes.Functions.TeleportIsland:InvokeServer("1MEvent", "TeleportBack") end)
                 teleport(Vector3.new(-26, -24, 122))
-                task.wait(0.2)
-                local nearestEgg = GetNearestEggModelByName("Common Egg")
-                if nearestEgg then ReplicatedStorage.Remotes.Functions.BuyEgg:InvokeServer(nearestEgg, 100) end
-            until TableCount(IndexedPets) > 0
-            buyFromMerchant()
+                repeat
+                    teleport(Vector3.new(-26, -24, 122))
+                    task.wait(0.2)
+                    local nearestEgg = GetNearestEggModelByName("Common Egg")
+                    if nearestEgg then ReplicatedStorage.Remotes.Functions.BuyEgg:InvokeServer(nearestEgg, 100) end
+                until TableCount(IndexedPets) > 0
+                IndexSetup = true
+            end
             task.wait()
             local nearestEgg, primaryPart = GetNearestEggModelByName(BestEggIndex)
             if nearestEgg then
                 teleport(primaryPart.Position)
-                ReplicatedStorage.Remotes.Functions.BuyEgg:InvokeServer(nearestEgg, 100)
+                HatchEgg(nearestEgg)
             end
-
         elseif Config.FarmMode == "Event" then
             local function teleportToEvent()
-                pcall(function() ReplicatedStorage.Remotes.Functions.TeleportIsland:InvokeServer("1MEvent", "TelportTo") end)
+                pcall(function() ReplicatedStorage.Remotes.Functions.TeleportIsland:InvokeServer("1MEvent", "TeleportTo") end)
             end
 
             local position = Vector3.new(-873.42, 37.18, -135.11)
             local hrp = getHRP()
             if not hrp then task.wait(); continue end
-
-            buyFromMerchant()
 
             if (hrp.Position - position).Magnitude > 20 then
                 teleportToEvent()
@@ -568,6 +610,26 @@ task.spawn(function()
 
             local egg = GetNearestEggModelByName("1M Egg")
             if egg then HatchEgg(egg) end
+        elseif Config.FarmMode == "Egg" and Config.Egg ~= "" then
+            if EggData[Config.Egg] and EggData[Config.Egg].IslandRequired then
+                if not HasIsland(EggData[Config.Egg].IslandRequired) then
+                    continue
+                end
+            end
+            local nearestEgg, primaryPart = GetNearestEggModelByName(Config.Egg)
+            local hrp = getHRP()
+            if hrp and primaryPart then
+                if (hrp.Position - primaryPart.Position).Magnitude > 30 then
+                    if EggData[Config.Egg].IslandRequired then
+                        game.ReplicatedStorage.Remotes.Functions.TeleportIsland:InvokeServer(EggData[Config.Egg].IslandRequired, "TeleportTo")
+                    else
+                        game.ReplicatedStorage.Remotes.Functions.TeleportIsland:InvokeServer("1MEvent", "TeleportBack")
+                    end
+                end
+            end
+            local nearestEgg, primaryPart = GetNearestEggModelByName(Config.Egg)
+            teleport(primaryPart.Position)
+            HatchEgg(nearestEgg)
         end
     end
 end)
