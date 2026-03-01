@@ -22,12 +22,11 @@ end
 local Config = (getgenv and getgenv().Config) or _G.Config or {}
 Config = mergeConfig(Default_Config, Config)
 
--- ==================== RAYFIELD UI SETUP ====================
 
 local Rayfield = loadstring(game:HttpGet("https://sirius.menu/rayfield"))()
 
 local Window = Rayfield:CreateWindow({
-    Name = "Royal Hatchers",
+    Name = "Royal Hatchers (.gg/8ywgJqucQK)",
     Icon = 0,
     LoadingTitle = "Royal Hatchers",
     LoadingSubtitle = "discord.gg/8ywgJqucQK",
@@ -45,7 +44,7 @@ local Window = Rayfield:CreateWindow({
 
 -- ==================== TABS ====================
 
-local MainTab     = Window:CreateTab("🏠 Main",      4483362458)
+local MainTab     = Window:CreateTab("📊 Session Stats",      4483362458)
 local FarmTab     = Window:CreateTab("🥚 Farm",      4483362458)
 local WebhookTab  = Window:CreateTab("🔔 Webhook",   4483362458)
 local SettingsTab = Window:CreateTab("⚙️ Settings",   4483362458)
@@ -66,21 +65,6 @@ local StatusLabel      = MainTab:CreateLabel("📡 Status: Idle")
 local GemLabel         = MainTab:CreateLabel("💎 Gems: 0")
 local HatchSpeedLabel  = MainTab:CreateLabel("⚡ Hatch Speed: --")
 
-MainTab:CreateSection("🔧 Control")
-local FarmRunning = false
-MainTab:CreateToggle({
-    Name = "Autofarm",
-    CurrentValue = false,
-    Flag = "FarmEnabled",
-    Callback = function(value)
-        FarmRunning = value
-        Rayfield:Notify({
-            Title = "Farm",
-            Content = value and ("Start Farm! Mode: " .. Config.FarmMode) or "Auto Farm Stopped.",
-            Duration = 3,
-        })
-    end,
-})
 
 FarmTab:CreateSection("🥚 Farm Settings")
 FarmTab:CreateDropdown({
@@ -104,6 +88,21 @@ FarmTab:CreateToggle({
     end,
 })
 
+FarmTab:CreateSection("🔧 Control")
+local FarmRunning = false
+FarmTab:CreateToggle({
+    Name = "Autofarm",
+    CurrentValue = false,
+    Flag = "FarmEnabled",
+    Callback = function(value)
+        FarmRunning = value
+        Rayfield:Notify({
+            Title = "Farm",
+            Content = value and ("Start Farm! Mode: " .. Config.FarmMode) or "Auto Farm Stopped.",
+            Duration = 3,
+        })
+    end,
+})
 
 WebhookTab:CreateSection("🔔 Discord Webhook")
 WebhookTab:CreateInput({
@@ -114,16 +113,14 @@ WebhookTab:CreateInput({
     Callback = function(text) Config.Webhook = text end,
 })
 WebhookTab:CreateInput({
-    Name = "Discord User ID (zum Pingen)",
-    PlaceholderText = "123456789012345678",
+    Name = "Discord User ID (for pinging)",
+    PlaceholderText = "12345",
     RemoveTextAfterFocusLost = false,
     Flag = "WebhookID",
     Callback = function(text) Config.WebhookID = text end,
 })
 WebhookTab:CreateSection("ℹ️ Info")
-WebhookTab:CreateLabel("Webhook wird bei Royal / Secret Pet Hatch gesendet.")
-
--- ==================== SETTINGS TAB ====================
+WebhookTab:CreateLabel("Webhook will be sent for Royal / Secret Pet Hatch.")
 
 SettingsTab:CreateSection("🎮 Performance")
 SettingsTab:CreateToggle({
@@ -151,7 +148,7 @@ SettingsTab:CreateToggle({
 })
 SettingsTab:CreateSection("🗑️ Workspace Cleanup")
 SettingsTab:CreateButton({
-    Name = "Workspace cleanen (FPS Boost)",
+    Name = "Clean Workspace (FPS Boost)",
     Callback = function()
         local areaNames = {"Spawn","Autumn","Frost","Jungle","New Areas","New New Areas","Other","Union","Icosphere.001","Cylinder.003","Maps"}
         for _, name in ipairs(areaNames) do
@@ -169,11 +166,9 @@ SettingsTab:CreateButton({
                 if obj then obj:Destroy() end
             end
         end
-        Rayfield:Notify({ Title = "Cleanup", Content = "Workspace gecleaned!", Duration = 3 })
+        Rayfield:Notify({ Title = "Cleanup", Content = "Workspace cleaned!", Duration = 3 })
     end,
 })
-
--- ==================== CORE SCRIPT LOGIC ====================
 
 local Players           = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -595,7 +590,6 @@ UpdateIndex.OnClientEvent:Connect(function(data)
     if not found then BestEggIndex = "Mystical Egg" end
 end)
 
--- Anti-AFK
 task.spawn(function()
     local GC = getconnections or get_signal_cons
     if GC then
@@ -607,7 +601,6 @@ task.spawn(function()
     while task.wait(120) do VirtualUser:CaptureController(); VirtualUser:ClickButton2(Vector2.new()) end
 end)
 
--- Stats Update Loop
 task.spawn(function()
     while true do
         local elapsed = os.time() - StartTime
@@ -624,9 +617,10 @@ end)
 task.spawn(function()
     while task.wait() do
         task.spawn(function() Click:InvokeServer(nil) end)
-        task.wait()
-        ClaimAllSeason:InvokeServer()
-        RestartPass:InvokeServer()
+        task.spawn(function()
+            ClaimAllSeason:InvokeServer()
+            RestartPass:InvokeServer()            
+        end)
     end
 end)
 
