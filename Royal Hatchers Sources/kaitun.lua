@@ -1,9 +1,10 @@
 local Default_Config = {
-    ["FarmMode"] = "Index",
+    ["FarmMode"] = "Egg",
     ["TeleportMethod"] = "Tween",
     ["Webhook"] = "",
     ["WebhookID"] = "",
-    ["Merchant"] = true,
+    ["Merchant"] = false,
+    ["Upgrades"] = false,
     ["Egg"] = "Celebration Egg",
 }
 
@@ -255,6 +256,9 @@ local function canAfford(itemFrame)
 end
 
 local function BuyAllUpgradesAndIslands()
+    if not Config["Upgrades"] then
+        return
+    end
     for upgradeName, data in pairs(UpgradesData) do
         if not HasUpgrade(upgradeName) and HasIsland(data.IslandRequired) and not unlockedUpgrades[upgradeName] then
             local playerCurrency = getPlayerCurrency(data.Cost[3])
@@ -263,10 +267,10 @@ local function BuyAllUpgradesAndIslands()
                 pcall(function()
                     ReplicatedStorage.Remotes.Functions.TeleportIsland:InvokeServer(data.IslandRequired, "TelportTo")
                 end)
-                wait(0.1)
+                task.wait(0.1)
                 SafePart.Position = getHRP().Position - Vector3.new(0,3,0)
                 teleport(UpgradesFolder:FindFirstChild(upgradeName).Base.CFrame)
-                wait(0.1)
+                task.wait(0.1)
                 local success = BuyUpgrade:InvokeServer(upgradeName)
                 if success then
                     unlockedUpgrades[upgradeName] = true
@@ -621,10 +625,11 @@ task.spawn(function()
             if hrp and primaryPart then
                 if (hrp.Position - primaryPart.Position).Magnitude > 30 then
                     if EggData[Config.Egg].IslandRequired then
-                        game.ReplicatedStorage.Remotes.Functions.TeleportIsland:InvokeServer(EggData[Config.Egg].IslandRequired, "TeleportTo")
+                        game.ReplicatedStorage.Remotes.Functions.TeleportIsland:InvokeServer(EggData[Config.Egg].IslandRequired, "TelportTo")
                     else
                         game.ReplicatedStorage.Remotes.Functions.TeleportIsland:InvokeServer("1MEvent", "TeleportBack")
                     end
+                    task.wait(0.2)
                 end
             end
             local nearestEgg, primaryPart = GetNearestEggModelByName(Config.Egg)
