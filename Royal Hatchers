@@ -206,6 +206,7 @@ local function rotateRandomly()
     getHRP().CFrame = getHRP().CFrame * CFrame.Angles(0, math.rad(randomAngle), 0)
 end
 local function teleport(target)
+    task.wait(0.1)
     local hrp = getHRP()
     if not hrp then return end
     
@@ -218,10 +219,11 @@ local function teleport(target)
     if distance < 10 then
         return
     end
+    SafePart.Position = hrp.Position - Vector3.new(0,3,0)
     
 
     if Config.TeleportMethod == "Tween" then
-        local tweenInfo = TweenInfo.new(distance / 30, Enum.EasingStyle.Linear)
+        local tweenInfo = TweenInfo.new(distance / 20, Enum.EasingStyle.Linear)
         local tween = game:GetService("TweenService"):Create(hrp, tweenInfo, {CFrame = CFrame.new(targetPos)})
         local tween2 = game:GetService("TweenService"):Create(SafePart, tweenInfo, {CFrame = CFrame.new(targetPos - Vector3.new(0, 3, 0))})
         tween:Play()
@@ -233,14 +235,6 @@ local function teleport(target)
 end
 
 
-local hrp = getHRP()
-
-
-ReplicatedStorage.Remotes.Functions.TeleportIsland:InvokeServer("Forest", "TelportTo")
-task.wait(0.5)
-ReplicatedStorage.Remotes.Functions.TeleportIsland:InvokeServer("Forest", "TeleportBack")
-task.wait(0.5)
-
 local clickEvents = {
     "MouseButton1Click",
     "MouseButton2Click",
@@ -251,7 +245,6 @@ local clickEvents = {
 
 local function buyFromMerchant()
     for merchantID, data in pairs(MerchantData) do
-        print(merchantID,data)
 
         local gui = player.PlayerGui.GUI:FindFirstChild(data.FrameDisplayName or "")
 
@@ -288,9 +281,10 @@ local function buyFromMerchant()
                                 ReplicatedStorage.Remotes.Functions.TeleportIsland:InvokeServer("Forest", "TelportTo")
                             end)
                         end 
+                        local hrp = getHRP()
+                        SafePart.Position = hrp.Position - Vector3.new(0,3,0)
                         task.wait(0.5)
                         tpCalled = true
-                            
                     end
                     
                     if merchantID == "1MMerchant" then
@@ -470,8 +464,6 @@ local function HatchEgg(Model)
         end
     end)
 end
-
-
 local function GetNearestEggModelByName(eggName)
     local hrp = getHRP()
     if not hrp then return nil end
@@ -542,7 +534,7 @@ if underscoreFolder then
     for _, name in ipairs(objectNames) do
         local obj = underscoreFolder:FindFirstChild(name)
         if obj then
-            obj:Destroy()
+            -- obj:Destroy()
         end
     end
 end
@@ -605,7 +597,8 @@ if Config.FarmMode == "Best" then
             pcall(function()
                 ReplicatedStorage.Remotes.Functions.TeleportIsland:InvokeServer(BestIslandData[1], "TelportTo")
             end)
-        
+            local hrp = getHRP()
+            SafePart.Position = hrp.Position - Vector3.new(0,3,0)
             task.wait(0.5)
         
             teleport(
@@ -644,6 +637,8 @@ elseif Config.FarmMode == "Event" then
     pcall(function()
         ReplicatedStorage.Remotes.Functions.TeleportIsland:InvokeServer("1MEvent", "TelportTo")
     end)
+    local hrp = getHRP()
+    SafePart.Position = hrp.Position - Vector3.new(0,3,0)
 
     task.wait(0.5)
 
@@ -656,6 +651,7 @@ elseif Config.FarmMode == "Event" then
     ).Unit
 
     while true do
+        buyFromMerchant()
         teleport(
            CFrame.new(position, position + randomLook)
         )
