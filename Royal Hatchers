@@ -127,6 +127,7 @@ decal.Parent = SafePart
 local Click = game:GetService("ReplicatedStorage").Remotes.Functions.Click
 local UpdateIndex = game:GetService("ReplicatedStorage").Remotes.Events.UpdateIndex
 local ClaimAllSeason = game:GetService("ReplicatedStorage").Remotes.Functions.ClaimAllSeason
+local RestartPass = game:GetService("ReplicatedStorage").Remotes.Functions.RestartPass
 
 local function GetEggFromPet(petName)
     for eggName, data in pairs(EggData) do
@@ -592,6 +593,7 @@ task.spawn(function()
         end)
         task.wait() 
         ClaimAllSeason:InvokeServer()
+        RestartPass:InvokeServer()
     end
 end)
 
