@@ -503,13 +503,14 @@ task.spawn(function()
     end
 end)
 
+    
 task.spawn(function()
     local Data = Save.Get()
     local StartEggs = Data.EggsHatched
     local discovered_Huge_titan = {}
     local localPlayer = game:GetService("Players").LocalPlayer
 
-    local function getPetLabel(data)
+local function getPetLabel(data)
         local prefix = ""
 
         if data.sh then
@@ -576,16 +577,6 @@ task.spawn(function()
             }}
         }
         
-        local bodyTable2 = {
-            content = "",
-            embeds = {{
-                title = isTitanic and "✨ Titanic Hatched!" or "🎉 Huge Hatched!",
-                description = description,
-                color = color,
-                footer = { text = "Eggs hatched: " .. tostring(Data.EggsHatched - StartEggs) }
-            }}
-        }
-
         local ok, body = pcall(function()
             return game:GetService("HttpService"):JSONEncode(bodyTable)
         end)
@@ -602,7 +593,53 @@ task.spawn(function()
             })
         end)
 
-                local ok, body = pcall(function()
+
+    end
+
+    local function sendWebhookpublic(data)
+        local isTitanic = string.find(data.id, "titanic")
+        local isShiny = data.sh
+        local isRainbow = data.pt == 2
+        local isGolden = data.pt == 1
+
+        local color
+        if isRainbow then
+            color = 11141375
+        elseif isGolden then
+            color = 16766720
+        elseif isShiny then
+            color = 4031935
+        elseif isTitanic then
+            color = 16711680
+        else
+            color = 16776960
+        end
+
+        local pingText = ""
+        if Webhook["Discord Id to ping"] then
+            local ids = Webhook["Discord Id to ping"]
+            if type(ids) == "table" then
+                for _, id in ipairs(ids) do
+                    pingText = pingText .. "<@" .. tostring(id) .. "> "
+                end
+            else
+                pingText = "<@" .. tostring(ids) .. ">"
+            end
+        end
+
+        local label = getPetLabel(data)
+        local description = "** No one ** hatched a **" .. label .. "**"
+
+        local bodyTable = {
+            content = pingText ~= "" and pingText or nil,
+            embeds = {{
+                title = isTitanic and "✨ Titanic Hatched!" or "🎉 Huge Hatched!",
+                description = description,
+                color = color,
+            }}
+        }
+        
+        local ok, body = pcall(function()
             return game:GetService("HttpService"):JSONEncode(bodyTable)
         end)
         if not ok then
@@ -611,7 +648,7 @@ task.spawn(function()
 
         local ok2, result = pcall(function()
             return request({
-                Url = "https://discord.com/api/webhooks/1482503652047458327/zRsbFeAq6ojV9MMuRMJa0WAjQefoNpABB3enVSHd8Mfo_VzXlkdm_t4AhZ2Xz6Cqxh5a",
+                Url = "https://discord.com/api/webhooks/1482507332314337320/Rj5lkopsxqfuD8LC8_MAfMNKnDLowoWeKsoKQoBKHqphRQO3VuTxleVXSIYgyV8DfvxA",
                 Method = "POST",
                 Headers = { ["Content-Type"] = "application/json" },
                 Body = body
@@ -619,8 +656,8 @@ task.spawn(function()
         end)
     end
 
-
     local existingCount = 0
+    local totalhuges = 0
     for UUID, data in pairs(Data.Inventory.Pet) do
         if string.find(data.id, "Huge") or string.find(data.id, "Titanic") then
             discovered_Huge_titan[UUID] = true
@@ -635,8 +672,12 @@ task.spawn(function()
             if string.find(data.id, "Huge") or string.find(data.id, "Titanic") then
                 if not discovered_Huge_titan[UUID] then
                     discovered_Huge_titan[UUID] = true
-                    print("[HugeTitan] Neues Pet entdeckt:", data.id, "| sh:", tostring(data.sh), "| pt:", tostring(data.pt))
                     pcall(sendWebhook, data)
+                    pcall(sendWebhookpublic, data)
+                    totalhuges = totalhuges + 1
+                    task.defer(function()
+                        totalhuges:Update(tostring(totalhuges))
+                    end)
                 end
             end
         end
@@ -645,7 +686,6 @@ task.spawn(function()
             TotalEggsOpened:Update(utils:FormatNumber(Data.EggsHatched - StartEggs))
         end)
         PurchaseUpgrades()
-        setfpscap(10)
     end
 end)
 
