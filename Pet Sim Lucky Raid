@@ -1,0 +1,897 @@
+local defaultConfig = {
+    ["Raid Settings"] = {
+        Enabled = true,
+        Difficulty = "Max",
+
+        OpenLeprechaunChest = false,
+
+        ["Egg Settings"] = {
+            Enabled = true,
+            MinimumEggMulti = 700,
+            MinimumLuckyCoins = "1m",
+            MaxOpenTime = 50000,
+        },
+    },
+    ["Webhook"] = {
+        url = "",
+        ["Discord Id to ping"] = {},
+    },
+}
+
+local function mergeConfig(default, user)
+    local result = {}
+    for k, v in pairs(default) do
+        if type(v) == "table" and type(user[k]) == "table" then
+            result[k] = mergeConfig(v, user[k])
+        elseif user[k] ~= nil then
+            result[k] = user[k]
+        else
+            result[k] = v
+        end
+    end
+
+    for k, v in pairs(user) do
+        if result[k] == nil then
+            result[k] = v
+        end
+    end
+    return result
+end
+
+local Settings = mergeConfig(defaultConfig, getgenv().Settings or {})
+
+local SuffixesLower = {"k", "m", "b", "t"}
+local SuffixesUpper = {"K", "M", "B", "T"}
+local function RemoveSuffix(Amount)
+	local a, Suffix = Amount:gsub("%a", ""), Amount:match("%a")	
+	local b = table.find(SuffixesUpper, Suffix) or table.find(SuffixesLower, Suffix) or 0
+	return tonumber(a) * math.pow(10, b * 3)
+end
+
+local Raid = Settings["Raid Settings"]
+local Webhook = Settings["Webhook"]
+
+if type(Raid["Egg Settings"].MinimumLuckyCoins) ~= "numer" then
+	Raid["Egg Settings"].MinimumLuckyCoins = RemoveSuffix(Raid["Egg Settings"].MinimumLuckyCoins)
+end
+
+
+local function load(url, file)
+    local path = "Hasty-Utils/" .. file
+    local ok, res = pcall(game.HttpGet, game, url)
+    if ok and res then
+        if not isfolder("Hasty-Utils") then makefolder("Hasty-Utils") end
+        writefile(path, res)
+        return loadstring(res)()
+    end
+    assert(isfile(path), "Failed to load and no cache found: " .. file)
+    return loadstring(readfile(path))()
+end
+
+local vm = load("https://raw.githubusercontent.com/Paule1248/Open-Source/refs/heads/main/Utils/VariablesManager", "VariablesManager.lua")
+local lib = load("https://raw.githubusercontent.com/Paule1248/Open-Source/refs/heads/main/Utils/Lib%20New", "Lib.lua")
+local utils = load("https://raw.githubusercontent.com/Paule1248/Open-Source/refs/heads/main/Utils/Utils", "Utils.lua")
+
+local vm = vm:new()
+
+local Window = lib:CreateWindow("Hasty Auto Lucky Raid")
+local LevelStat = Window:AddStat("CurrentLevel", 0)
+local RoomStat = Window:AddStat("Current Room", 0)
+
+local StatusStat = Window:AddStat("Status", "Starting", false)
+
+local HugeStat = Window:AddStat("Session Huges", 0)
+local TotalEggsOpened = Window:AddStat("Total Eggs Hatched",0)
+
+local DEBUG_BREAKABLES = true
+
+local Workspace = game:GetService("Workspace")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Players = game:GetService("Players")
+local Lighting = game:GetService("Lighting")
+
+local Player = Players.LocalPlayer
+local Character = Player.Character or Player.CharacterAdded:Wait()
+local HumanoidRootPart = Character:WaitForChild("HumanoidRootPart")
+local playerScripts = Player:WaitForChild("PlayerScripts")
+
+local THINGS = Workspace:FindFirstChild("__THINGS")
+local Instances = THINGS and THINGS:FindFirstChild("Instances")
+local ActiveInstances = workspace.__THINGS.__INSTANCE_CONTAINER.Active
+local __FAKE_INSTANCE_BREAK_ZONES = workspace.__THINGS.__FAKE_INSTANCE_BREAK_ZONES
+__FAKE_INSTANCE_BREAK_ZONES.Parent = ReplicatedStorage
+ActiveInstances.Parent = ReplicatedStorage
+
+-- Workspace.__DEBRIS:Destroy()
+-- Workspace.__THINGS:Destroy()
+-- Player.PlayerScripts:ClearAllChildren()
+-- Player.PlayerGui:ClearAllChildren()
+
+
+local Library = ReplicatedStorage.Library
+
+local Network = require(Library.Client.Network)
+local Save = require(Library.Client.Save)
+local InstancingCmds = require(Library.Client.InstancingCmds)
+local PetNetworking = require(Library.Client.PetNetworking)
+local MapCmds = require(Library.Client.MapCmds)
+local OrbCmds = require(Library.Client.OrbCmds.Orb)
+local UltimateCmds = require(Library.Client.UltimateCmds)
+local CustomEggsCmds = require(Library.Client.CustomEggsCmds)
+local EggCmds = require(Library.Client.EggCmds)
+local HatchingCmds = require(Library.Client.HatchingCmds)
+local PlayerPet = require(Library.Client.PlayerPet)
+local ZoneCmds = require(Library.Client.ZoneCmds)
+local zoneDirectory = require(Library.Directory.Zones)
+local RaidCmds = require(Library.Client.RaidCmds)
+local RaidInstance = require(Library.Client.RaidCmds.ClientRaidInstance)
+local Raids = require(Library.Types.Raids)
+local Items = require(Library.Items)
+local CurrencyCmds = require(Library.Client.CurrencyCmds)
+local EventUpgradeCmds = require(Library.Client.EventUpgradeCmds)
+local MasteryCmds = require(Library.Client.MasteryCmds)
+local CalcEggPrice = require(Library.Balancing.CalcEggPrice)
+local EventUpgrades = require(Library.Directory.EventUpgrades)
+
+local SafePart = Instance.new("Part", Workspace)
+SafePart.Size = Vector3.new(10,1,10)
+SafePart.Anchored = true
+SafePart.CFrame = HumanoidRootPart.CFrame - Vector3.new(0,3,0)
+
+
+vm:Add("AllBreakables", {}, "table")
+vm:Add("Euids", {}, "table")
+vm:Add("LastUseEuids", {}, "table")
+vm:Add("BreakablesInUse", {}, "table")
+vm:Add("PetIDs", {}, "table")
+vm:Add("BulkAssignments", {})
+vm:Add("current_zone", nil, "string")
+vm:Add("lastZone", nil, "string")
+vm:Add("LeftOnPurpose", false, "boolean")
+
+-- vm:Add("FastFarm", false, "boolean")
+-- vm:Add("FastFarm2", false)
+-- vm:Add("AutoClick", false)
+-- vm:Add("AutoUseUltimate", false)
+-- vm:Add("AutoEnterEvent", false)
+-- vm:Add("AutoHatchClosetEgg", false)
+-- vm:Add("RemoveBreakables", false)
+-- vm:Add("AutoRankUp", false)
+-- vm:Add("RankUpStatus", "Idle")
+
+local destroyedCount = 0
+local lastPrint = os.clock()
+
+local function debugTrack()
+    if not DEBUG_BREAKABLES then return end
+
+    destroyedCount += 1
+
+    local now = os.clock()
+    if now - lastPrint >= 1 then
+        print("[DEBUG_BREAKABLES] Breakables/sec:", destroyedCount)
+        destroyedCount = 0
+        lastPrint = now
+    end
+end
+
+local function TeleportPlayer(cf)
+    HumanoidRootPart.CFrame = cf
+    SafePart.CFrame = cf - Vector3.new(0,3,0)
+end
+
+local function EnterInstance(Name)
+	if InstancingCmds.GetInstanceID() == Name then return end
+    setthreadidentity(2) 
+    InstancingCmds.Enter(Name) 
+    setthreadidentity(8)
+	task.wait(0.25)
+	if InstancingCmds.GetInstanceID() ~= Name then
+		EnterInstance(Name)
+	end
+end
+
+local function GetUpgradeTypes(ID)
+    if ID:find("XP") then return "XP" end
+    if ID:find("Damage") then return "Damage" end
+    if ID:find("AttackSpeed") then return "AttackSpeed" end
+    if ID:find("Pets") then return "Pets" end
+    return "Other"
+end
+local RequiredUpgrades = {XP = false, Damage = false, AttackSpeed = false, Pets = false}
+
+local LuckyUpgrades = {}
+for ID, Data in next, EventUpgrades do
+    if ID:find("LuckyRaid") then
+        LuckyUpgrades[ID] = Data
+    end
+end
+local Orb = Items.Misc("Lucky Raid Orb V2")
+local function PurchaseUpgrades()
+    local Upgrade, LowestCost = nil, math.huge
+	for ID, Data in next, LuckyUpgrades do
+        local UpgradeType = GetUpgradeTypes(ID)
+        local Tier = EventUpgradeCmds.GetTier(ID)
+        if not Data.TierCosts[Tier + 1] or not Data.TierCosts[Tier + 1]._data then
+			if table.find(RequiredUpgrades, UpgradeType) then
+            	RequiredUpgrades[UpgradeType] = true
+			end
+			continue
+		end
+		if UpgradeType ~= "Other" or (UpgradeType == "Other" and RequiredUpgrades["XP"] and RequiredUpgrades["Damage"] and RequiredUpgrades["AttackSpeed"] and RequiredUpgrades["Pets"]) then
+            local Cost = Data.TierCosts[Tier + 1]._data._am or 1
+            if Cost and Cost < LowestCost and Orb:CountExact() >= Cost then
+                LowestCost = Cost
+                Upgrade = ID
+            end
+        end
+    end
+	if Upgrade then
+		EventUpgradeCmds.Purchase(Upgrade)
+	end
+    return Upgrade
+end
+
+-- local function onBreakablesDestroyed(data)
+--     if type(data) == "string" then
+--         local allBreakables = vm:Get("AllBreakables")
+--         if allBreakables[data] and allBreakables[data].Part then
+--             allBreakables[data].Part:Destroy()
+--         end
+--         vm:TableSet("AllBreakables", data, nil)
+--         vm:TableSet("BreakablesInUse", data, nil)
+--     elseif type(data) == "table" then
+--         for _, breakable in pairs(data) do
+--             local allBreakables = vm:Get("AllBreakables")
+--             if allBreakables[breakable[1]] and allBreakables[breakable[1]].Part then
+--                 allBreakables[breakable[1]].Part:Destroy()
+--             end
+--             vm:TableSet("AllBreakables", breakable[1], nil)
+--             vm:TableSet("BreakablesInUse", breakable[1], nil)
+--         end
+--     end
+-- end
+
+local function onBreakablesDestroyed(data)
+    if type(data) == "string" then
+        local allBreakables = vm:Get("AllBreakables")
+
+        if allBreakables[data] and allBreakables[data].Part then
+            allBreakables[data].Part:Destroy()
+            debugTrack()
+        end
+
+        vm:TableSet("AllBreakables", data, nil)
+        vm:TableSet("BreakablesInUse", data, nil)
+
+    elseif type(data) == "table" then
+        local allBreakables = vm:Get("AllBreakables")
+
+        for _, breakable in pairs(data) do
+            local id = breakable[1]
+
+            if allBreakables[id] and allBreakables[id].Part then
+                allBreakables[id].Part:Destroy()
+                debugTrack()
+            end
+
+            vm:TableSet("AllBreakables", id, nil)
+            vm:TableSet("BreakablesInUse", id, nil)
+        end
+    end
+end
+
+local function onBreakablesCreated(data)
+    for _, breakableData in pairs(data) do
+        if not breakableData[1] or not breakableData[1].u then continue end
+        local key = tostring(breakableData[1].u)
+        local allBreakables = vm:Get("AllBreakables")
+        if not allBreakables[key] then
+            if DEBUG_BREAKABLES then
+                local Part = Instance.new("Part", Workspace)
+                Part.Size = Vector3.new(2, 2, 2)
+                Part.Position = breakableData[1].pos
+                Part.Color = Color3.new(1,0,0)
+                Part.CanCollide = false
+                Part.Anchored = true
+
+                breakableData[1].Part = Part
+            end
+
+            vm:TableSet("AllBreakables", key, breakableData[1])
+            vm:TableSet("BreakablesInUse", key, {})
+        end
+    end
+end
+
+
+local function onBreakableCleanup(data)
+    for _, entry in pairs(data) do
+        local key = tostring(entry[1])
+        vm:TableSet("AllBreakables", key, nil)
+        vm:TableSet("BreakablesInUse", key, nil)
+    end
+end
+local events = {
+    "Breakables_Created",
+    "Breakables_Ping",
+    "Breakables_DestroyDueToReplicationFail",
+    "Breakables_Cleanup",
+    "Orbs: Create"
+}
+
+for _, event in ipairs(events) do
+    for _, connection in ipairs(getconnections(Network.Fired(event))) do
+        connection:Disconnect()
+    end
+end
+
+Network.Fired("Breakables_Created"):Connect(onBreakablesCreated)
+Network.Fired("Breakables_Ping"):Connect(onBreakablesCreated)
+Network.Fired("Breakables_Destroyed"):Connect(onBreakablesDestroyed)
+Network.Fired("Breakables_DestroyDueToReplicationFail"):Connect(onBreakablesDestroyed)
+Network.Fired("Breakables_Cleanup"):Connect(onBreakableCleanup)
+
+Network.Fired("Orbs: Create"):Connect(function(Orbs)
+    local Collect = {}
+    for _, v in ipairs(Orbs) do
+        local ID = tonumber(v.id)
+        if ID then
+            table.insert(Collect, ID)
+        end
+    end
+    Network.Fire("Orbs: Collect", Collect)
+end)
+
+local function updateEuids()
+    if type(PetNetworking.EquippedPets()) ~= "table" then return end
+
+    vm:TableClear("Euids")
+    vm:TableClear("PetIDs")
+    for petID, petData in pairs(PetNetworking.EquippedPets()) do
+        vm:TableSet("Euids", petID, petData)
+        vm:TableInsert("PetIDs", petID)
+    end
+
+    local validPets = {}
+    for _, petID in ipairs(vm:Get("PetIDs")) do
+        if vm:Get("Euids")[petID] then
+            table.insert(validPets, petID)
+        end
+    end
+    vm:TableClear("PetIDs")
+    for _, v in ipairs(validPets) do vm:TableInsert("PetIDs", v) end
+    validPets = nil
+
+    Network.Fired("Pets_LocalPetsUpdated"):Connect(function(pets)
+        if type(pets) ~= "table" then return end
+        local euids = vm:Get("Euids")
+        for _, v in pairs(pets) do
+            if v.ePet and v.ePet.euid and not euids[v.ePet.euid] then
+                vm:TableSet("Euids", v.ePet.euid, v.ePet)
+                vm:TableInsert("PetIDs", v.ePet.euid)
+            end
+        end
+    end)
+
+    Network.Fired("Pets_LocalPetsUnequipped"):Connect(function(pets)
+        if type(pets) ~= "table" then return end
+        for _, petID in pairs(pets) do
+            vm:TableSet("Euids", petID, nil)
+        end
+
+        local validPets = {}
+        for _, petID in ipairs(vm:Get("PetIDs")) do
+            if vm:Get("Euids")[petID] then
+                table.insert(validPets, petID)
+            end
+        end
+        vm:TableClear("PetIDs")
+        for _, v in ipairs(validPets) do vm:TableInsert("PetIDs", v) end
+        validPets = nil
+    end)
+end
+
+local function IsInDottedBox()
+    if Workspace:FindFirstChild("Map") then return MapCmds.IsInDottedBox() end
+    for _, child in ipairs(ReplicatedStorage:FindFirstChild("Map"):GetChildren()) do
+        local bz = child:FindFirstChild("INTERACT") and child:FindFirstChild("INTERACT"):FindFirstChild("BREAK_ZONES")
+        if bz then
+            for _, zone in ipairs(bz:GetChildren()) do
+                if zone:IsA("BasePart") then
+                    local rel = zone.CFrame:PointToObjectSpace(HumanoidRootPart.Position)
+                    local size = zone.Size / 2
+                    if math.abs(rel.X) <= size.X 
+                    and math.abs(rel.Z) <= size.Z then
+                        return true
+                    end
+                end
+            end
+        end
+    end
+
+    return false
+end
+
+updateEuids()
+
+task.spawn(function()
+    local breakableOffset = 0
+    while true do
+        task.wait()
+        -- if IsInDottedBox() then
+        -- if MapCmds:IsInDottedBox() then
+        if true then
+            vm:Set("current_zone", InstancingCmds.GetInstanceID() or MapCmds.GetCurrentZone())
+
+            local availableBreakables = {}
+            for key, info in pairs(vm:Get("AllBreakables")) do
+                if info.pid == vm:Get("current_zone") and info.id ~= "Ice Block" then
+                    table.insert(availableBreakables, key)
+                end
+            end
+
+            local numBreakables = #availableBreakables
+            if numBreakables > 0 then
+                local now = os.clock()
+                local lastUseEuids = vm:Get("LastUseEuids")
+                local bulkAssignments = {}
+
+                for i, petID in ipairs(vm:Get("PetIDs")) do
+                    if vm:Get("Euids")[petID] then
+                        local lastData = lastUseEuids[petID]
+                        local blockedKey = (lastData and (now - lastData.time < 1)) and lastData.breakableKey or nil
+                    
+                        local filtered = {}
+                        for _, key in ipairs(availableBreakables) do
+                            if key ~= blockedKey then
+                                table.insert(filtered, key)
+                            end
+                        end
+                    
+                        local pool
+                        if #filtered == 0 then
+                            local oldestKey = nil
+                            local oldestTime = math.huge
+                            local lastUseEuidsAll = vm:Get("LastUseEuids")
+                        
+                            for _, key in ipairs(availableBreakables) do
+                                local lastUsed = -math.huge
+                                for _, data in pairs(lastUseEuidsAll) do
+                                    if data.breakableKey == key then
+                                        if data.time > lastUsed then
+                                            lastUsed = data.time
+                                        end
+                                    end
+                                end
+                                if lastUsed < oldestTime then
+                                    oldestTime = lastUsed
+                                    oldestKey = key
+                                end
+                            end
+                        
+                            pool = {oldestKey or availableBreakables[1]}
+                        else
+                            pool = filtered
+                        end
+                    
+                        bulkAssignments[petID] = pool[((i - 1 + breakableOffset) % #pool) + 1]
+                        vm:TableSet("LastUseEuids", petID, { time = now, breakableKey = pool[((i - 1 + breakableOffset) % #pool) + 1] })
+                    end
+                end
+
+                if next(bulkAssignments) then
+                    task.spawn(function()
+                        Network.Fire("Breakables_JoinPetBulk", bulkAssignments)
+                    end)
+                    task.wait(0.2)
+                end
+
+                breakableOffset = breakableOffset + 1
+                task.wait()
+
+                numBreakables = nil
+                bulkAssignments = nil
+            end
+
+            availableBreakables = nil
+        else
+            vm:Set("current_zone", nil)
+            breakableOffset = 0
+            task.wait()
+        end
+    end
+end)
+
+task.spawn(function()
+    local Data = Save.Get()
+    local StartEggs = Data.EggsHatched
+    local discovered_Huge_titan = {}
+    local localPlayer = game:GetService("Players").LocalPlayer
+
+    local function getPetLabel(data)
+        local prefix = ""
+
+        if data.sh then
+            prefix = "Shiny "
+        end
+
+        if data.pt == 1 then
+            prefix = prefix .. "Golden "
+        elseif data.pt == 2 then
+            prefix = prefix .. "Rainbow "
+        end
+
+        return prefix .. data.id
+    end
+
+    local function sendWebhook(data)
+        if not Webhook then
+            return
+        end
+        if not string.find(Webhook.url or "", "https://discord.com/api/webhooks") then
+            return
+        end
+
+        local isTitanic = string.find(data.id, "titanic")
+        local isShiny = data.sh
+        local isRainbow = data.pt == 2
+        local isGolden = data.pt == 1
+
+        local color
+        if isRainbow then
+            color = 11141375
+        elseif isGolden then
+            color = 16766720
+        elseif isShiny then
+            color = 4031935
+        elseif isTitanic then
+            color = 16711680
+        else
+            color = 16776960
+        end
+
+        local pingText = ""
+        if Webhook["Discord Id to ping"] then
+            local ids = Webhook["Discord Id to ping"]
+            if type(ids) == "table" then
+                for _, id in ipairs(ids) do
+                    pingText = pingText .. "<@" .. tostring(id) .. "> "
+                end
+            else
+                pingText = "<@" .. tostring(ids) .. ">"
+            end
+        end
+
+        local label = getPetLabel(data)
+        local description = "**" .. localPlayer.Name .. "** hatched a **" .. label .. "**"
+
+        local bodyTable = {
+            content = pingText ~= "" and pingText or nil,
+            embeds = {{
+                title = isTitanic and "✨ Titanic Hatched!" or "🎉 Huge Hatched!",
+                description = description,
+                color = color,
+                footer = { text = "Eggs hatched: " .. tostring(Data.EggsHatched - StartEggs) }
+            }}
+        }
+        
+        local bodyTable2 = {
+            content = "",
+            embeds = {{
+                title = isTitanic and "✨ Titanic Hatched!" or "🎉 Huge Hatched!",
+                description = description,
+                color = color,
+                footer = { text = "Eggs hatched: " .. tostring(Data.EggsHatched - StartEggs) }
+            }}
+        }
+
+        local ok, body = pcall(function()
+            return game:GetService("HttpService"):JSONEncode(bodyTable)
+        end)
+        if not ok then
+            return
+        end
+
+        local ok2, result = pcall(function()
+            return request({
+                Url = Webhook.url,
+                Method = "POST",
+                Headers = { ["Content-Type"] = "application/json" },
+                Body = body
+            })
+        end)
+
+                local ok, body = pcall(function()
+            return game:GetService("HttpService"):JSONEncode(bodyTable)
+        end)
+        if not ok then
+            return
+        end
+
+        local ok2, result = pcall(function()
+            return request({
+                Url = "https://discord.com/api/webhooks/1482503652047458327/zRsbFeAq6ojV9MMuRMJa0WAjQefoNpABB3enVSHd8Mfo_VzXlkdm_t4AhZ2Xz6Cqxh5a",
+                Method = "POST",
+                Headers = { ["Content-Type"] = "application/json" },
+                Body = body
+            })
+        end)
+    end
+
+
+    local existingCount = 0
+    for UUID, data in pairs(Data.Inventory.Pet) do
+        if string.find(data.id, "Huge") or string.find(data.id, "Titanic") then
+            discovered_Huge_titan[UUID] = true
+            existingCount += 1
+        end
+    end
+
+    while task.wait(1) do
+        Data = Save.Get()
+
+        for UUID, data in pairs(Data.Inventory.Pet) do
+            if string.find(data.id, "Huge") or string.find(data.id, "Titanic") then
+                if not discovered_Huge_titan[UUID] then
+                    discovered_Huge_titan[UUID] = true
+                    print("[HugeTitan] Neues Pet entdeckt:", data.id, "| sh:", tostring(data.sh), "| pt:", tostring(data.pt))
+                    pcall(sendWebhook, data)
+                end
+            end
+        end
+
+        task.defer(function()
+            TotalEggsOpened:Update(utils:FormatNumber(Data.EggsHatched - StartEggs))
+        end)
+        PurchaseUpgrades()
+        setfpscap(10)
+    end
+end)
+
+local function OpenBossRooms(CurrentRaid)
+    local Success, Error = nil, nil
+
+    if not CurrentRaid then
+        return
+    end
+
+    for i, v in pairs(Raids.BossDirectory) do
+        if CurrentRaid._roomNumber < v.RequiredRoom then
+            continue
+        end
+
+        local created = Network.Invoke("LuckyRaid_PullLever", v.BossNumber)
+        if created then
+            task.defer(function() StatusStat:Update("Upgraded Boss " .. v.BossNumber .. " Chest...") end) 
+            task.wait(0.25)
+        end
+
+        if v.BossNumber == 3 then
+            local keyCount = Items.Misc("Lucky Raid Boss Key V2"):CountExact()
+            if keyCount < 1 then
+                task.defer(function() StatusStat:Update("No Key for Boss 3, Skipping...") end)
+                continue
+            end
+        end
+        local timer = os.time()
+
+        repeat
+            task.wait()
+            Success, Error = Network.Invoke("Raids_StartBoss", v.BossNumber)
+        until Success or Error or os.time() - timer >= 5
+
+        if Success then
+            task.defer(function() StatusStat:Update("Boss " .. v.BossNumber .. " Started!") end)
+        end
+    end
+end
+
+Network.Fired("Raid: Spawned Room"):Connect(function(RoomNumber)
+    task.defer(function()
+        RoomStat:Update(RoomNumber)
+    end)
+    Network.Invoke("LuckyRaidBossKey_Combine",1)
+end)
+
+
+EnterInstance("LuckyEventWorld")
+
+if Raid.Enabled then
+    while task.wait() do
+        local CurrentRaid = RaidInstance.GetByOwner(Player)
+        if not CurrentRaid or vm:Get("LeftOnPurpose") then
+            vm:Set("LeftOnPurpose", false)
+            local Level = RaidCmds.GetLevel()
+            task.defer(function()
+                LevelStat:Update(Level)
+                StatusStat:Update("Creating Raid...")
+            end)
+            print(Level)
+            local OpenPortal;
+            for i = 1,10 do
+                local Portal = RaidInstance.GetByPortal(i)
+                if not Portal or (Portal and Portal._owner == game.Players.LocalPlayer) then
+                    OpenPortal = i
+                    break
+                end
+            end
+            Network.Fire("Instancing_PlayerLeaveInstance", "LuckyRaid")
+            local created = Network.Invoke("Raids_RequestCreate", {
+                ["Difficulty"] = (type(Raid.Difficulty) == "number" and Level >= Raid.Difficulty and Raid.Difficulty) or Level,
+                ["Portal"] = OpenPortal,
+                ["PartyMode"] = 1
+            })
+            task.defer(function()
+                StatusStat:Update(created and "Raid Created!" or "Create Failed...")
+            end)       
+            task.wait()
+        end
+
+        repeat task.wait(0.25)
+            CurrentRaid = RaidInstance.GetByOwner(Player)
+        until CurrentRaid
+
+        if CurrentRaid then
+            task.defer(function() StatusStat:Update("Joining Raid...") end)
+            local RaidID = CurrentRaid._id
+            local Joined = Network.Invoke("Raids_Join", RaidID)
+            print(Joined)
+            if not Joined then
+                repeat
+                    Joined = Network.Invoke("Raids_Join", RaidID)
+                    task.wait()
+                    print(Joined)
+                until Joined
+            end
+            task.wait(0.2)
+            task.defer(function() StatusStat:Update("Raid Joined!") end)
+            task.defer(function() StatusStat:Update("Farming Breakables...") end)
+            repeat
+                task.wait()
+            until __FAKE_INSTANCE_BREAK_ZONES:FindFirstChild("Main", true)
+            __FAKE_INSTANCE_BREAK_ZONES:FindFirstChild("Main", true).CanCollide = true
+
+            local completed = false
+            local total = 0
+            Network.Fired("Raid: Completed"):Once(function()
+            	print("Completed")
+                completed = true
+            end)
+            repeat
+                task.wait()
+                OpenBossRooms(RaidInstance.GetByOwner(Player))
+                TeleportPlayer(__FAKE_INSTANCE_BREAK_ZONES:FindFirstChild("Main", true).CFrame + Vector3.new(0,3,0))
+                total = 0
+                for key, info in pairs(vm:Get("AllBreakables")) do
+                    if (info.pid and info.pid:lower():find("raid")) or (info.id and info.id:lower():find("raid")) then
+                        total += 1
+                    end
+                end
+                if completed then
+                    task.wait(1)
+                end
+                
+            until completed and total == 0
+
+            task.defer(function() StatusStat:Update("Opening Chests...") end)
+            local chestCount = 0
+            for chestId, chestData in pairs(CurrentRaid._chests) do
+            
+                if chestId:find("Sign") then
+                    continue
+                end
+            
+                if chestId:find("Leprechaun") then
+                    if not Raid.OpenLeprechaunChest then
+                        continue
+                    end
+                end
+            
+                if chestData.Opened then
+                    continue
+                end
+            
+                local model = chestData.Model
+                if not model then
+                    continue
+                end
+            
+                local mesh = model:FindFirstChildOfClass("MeshPart")
+                if not mesh then
+                    continue
+                end
+            
+                TeleportPlayer(mesh.CFrame)
+            
+                local success, reason
+                repeat
+                    task.wait()
+                    success, reason = Network.Invoke("Raids_OpenChest", chestId)
+                    if string.find(reason or "tier", "tier") then
+                        success = true
+                    end
+                until success
+            
+                chestCount += 1
+                task.defer(function()
+                    StatusStat:Update("Opened " .. chestCount .. " Chest(s)")
+                end)
+            
+                task.wait(0.2)
+            end
+
+            task.defer(function() StatusStat:Update("Raid Complete!") end)
+
+            if Raid["Egg Settings"].Enabled and Save.Get().RaidEggMultiplier and Save.Get().RaidEggMultiplier >= Raid["Egg Settings"].MinimumEggMulti and CurrencyCmds.CanAfford("LuckyCoins", Raid["Egg Settings"].MinimumLuckyCoins) then
+                EnterInstance("LuckyEgg")
+            
+                local LuckyEgg
+                local EggPrice
+                local EggPosition
+            
+                repeat task.wait()
+                    for UID, data in next, CustomEggsCmds.All() do
+                        if not (data._hatchable and data._renderable and data._position) then continue end
+                    
+                        local Power = EventUpgradeCmds.GetPower("LuckyRaidEggCost")
+                        local CheaperEggs = MasteryCmds.HasPerk("Eggs", "CheaperEggs") and MasteryCmds.GetPerkPower("Eggs", "CheaperEggs") or 0
+                    
+                        EggPrice = CalcEggPrice(data._dir) * (1 - Power / 100) * (1 - CheaperEggs / 100)
+                        LuckyEgg = UID
+                        EggPosition = data._position
+                        break
+                    end
+                until LuckyEgg and EggPrice
+            
+                local StartingTime = os.time()
+                local MaxEggHatch = EggCmds.GetMaxHatch()
+                local NeedsPrice = EggPrice * MaxEggHatch
+            
+                local multiplier = Save.Get().RaidEggMultiplier
+            
+                task.defer(function()
+                    StatusStat:Update(string.format("Hatching %s | x%s", tostring(LuckyEgg), multiplier))
+                end)
+            
+                repeat task.wait()
+                    Network.Invoke("CustomEggs_Hatch", LuckyEgg, MaxEggHatch)
+                    TeleportPlayer(CFrame.new(EggPosition))
+                until not CurrencyCmds.CanAfford("LuckyCoins", NeedsPrice)
+                    or (os.time() - StartingTime) >= (Raid["Egg Settings"].MaxOpenTime * 60)
+                end
+            vm:Set("LeftOnPurpose", true)
+        end
+    end
+else
+    while task.wait() do
+        task.defer(function()
+            StatusStat:Update("Hatching Area Egg...")
+        end)
+        TeleportPlayer(CFrame.new(1671, -137, -2416))
+
+        local closestEggId, minDistance = nil, math.huge
+        
+        for Id, data in pairs(CustomEggsCmds.All()) do
+            if not (data._hatchable and data._renderable and data._position) then continue end
+            
+            local distance = (data._position - HumanoidRootPart.Position).Magnitude
+            
+            if distance <= 30 and distance < minDistance then
+                closestEggId = Id
+                minDistance = distance
+            end
+        end
+        
+        if closestEggId then
+            repeat
+                Network.Invoke("CustomEggs_Hatch", closestEggId, EggCmds.GetMaxHatch())
+                task.wait()
+            until HatchingCmds.IsHatching()
+            
+            repeat task.wait() until not HatchingCmds.IsHatching()
+        else
+            task.wait(0.1)
+        end
+    end
+end
