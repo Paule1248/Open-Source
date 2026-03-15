@@ -1,7 +1,7 @@
 local defaultConfig = {
     ["Raid Settings"] = {
         Enabled = true,
-        Difficulty = "Max",
+        Difficulty = 9999,
 
         OpenLeprechaunChest = false,
 
@@ -89,6 +89,7 @@ local Workspace = game:GetService("Workspace")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
 local Lighting = game:GetService("Lighting")
+local VirtualUser = game:GetService("VirtualUser")
 
 local Player = Players.LocalPlayer
 local Character = Player.Character or Player.CharacterAdded:Wait()
@@ -101,6 +102,13 @@ local ActiveInstances = workspace.__THINGS.__INSTANCE_CONTAINER.Active
 local __FAKE_INSTANCE_BREAK_ZONES = workspace.__THINGS.__FAKE_INSTANCE_BREAK_ZONES
 __FAKE_INSTANCE_BREAK_ZONES.Parent = ReplicatedStorage
 ActiveInstances.Parent = ReplicatedStorage
+
+Player.PlayerScripts.Scripts.Core["Server Closing"].Enabled = false
+Player.PlayerScripts.Scripts.Core["Idle Tracking"].Enabled = false
+Player.Idled:Connect(function() 
+	VirtualUser:CaptureController() 
+	VirtualUser:ClickButton2(Vector2.new()) 
+end)
 
 -- Workspace.__DEBRIS:Destroy()
 -- Workspace.__THINGS:Destroy()
@@ -132,6 +140,8 @@ local EventUpgradeCmds = require(Library.Client.EventUpgradeCmds)
 local MasteryCmds = require(Library.Client.MasteryCmds)
 local CalcEggPrice = require(Library.Balancing.CalcEggPrice)
 local EventUpgrades = require(Library.Directory.EventUpgrades)
+
+Network.Fire("Idle Tracking: Stop Timer")
 
 local SafePart = Instance.new("Part", Workspace)
 SafePart.Size = Vector3.new(10,1,10)
@@ -686,6 +696,7 @@ local function getPetLabel(data)
             TotalEggsOpened:Update(utils:FormatNumber(Data.EggsHatched - StartEggs))
         end)
         PurchaseUpgrades()
+        Network.Invoke("Mailbox: Claim All")
     end
 end)
 
