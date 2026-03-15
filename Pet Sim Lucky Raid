@@ -633,7 +633,7 @@ task.spawn(function()
             return
         end
 
-        local isTitanic = string.find(data.id, "titanic")
+        local isTitanic = string.find(data.id, "Titanic")
         local isShiny = data.sh
         local isRainbow = data.pt == 2
         local isGolden = data.pt == 1
