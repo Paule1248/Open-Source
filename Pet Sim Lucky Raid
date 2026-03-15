@@ -6,13 +6,13 @@ _G.Started = true
 local defaultConfig = {
     ["Raid Settings"] = {
         Enabled = true,
-        Difficulty = "Max",
+        Difficulty = 1,
 
         OpenLeprechaunChest = false,
 
         ["Egg Settings"] = {
             Enabled = true,
-            MinimumEggMulti = 700,
+            MinimumEggMulti = 1,
             MinimumLuckyCoins = "1m",
             MaxOpenTime = 50000,
         },
@@ -21,6 +21,8 @@ local defaultConfig = {
         url = "",
         ["Discord Id to ping"] = {"0"},
     },
+
+    ["Hatch Starter Pets"] = false,
 }
 
 local function mergeConfig(default, user)
@@ -56,7 +58,7 @@ end
 local Raid = Settings["Raid Settings"]
 local Webhook = Settings["Webhook"]
 
-if type(Raid["Egg Settings"].MinimumLuckyCoins) ~= "numer" then
+if type(Raid["Egg Settings"].MinimumLuckyCoins) ~= "number" then
 	Raid["Egg Settings"].MinimumLuckyCoins = RemoveSuffix(Raid["Egg Settings"].MinimumLuckyCoins)
 end
 
@@ -109,17 +111,18 @@ THINGS.Parent = ReplicatedStorage
 ActiveInstances.Parent = ReplicatedStorage
 local mainfound = false
 local chestsPos = {}
+local eggs = {}
 local mainPos = Vector3.new(0,0,0)
 
 local THINGS_Delete = {
     "Breakables", "Eggs", "HiddenPresents","Pets","ZoneEggs"
 }
 
-for _, child in ipairs(THINGS:GetChildren()) do
-    if table.find(THINGS_Delete, child.Name) then
-        child:Destroy()
-    end
-end
+-- for _, child in ipairs(THINGS:GetChildren()) do
+    -- if table.find(THINGS_Delete, child.Name) then
+        -- child:Destroy()
+    -- end
+-- end
 
 Player.PlayerScripts.Scripts.Core["Server Closing"].Enabled = false
 Player.PlayerScripts.Scripts.Core["Idle Tracking"].Enabled = false
@@ -161,6 +164,7 @@ local EventUpgradeCmds = require(Library.Client.EventUpgradeCmds)
 local MasteryCmds = require(Library.Client.MasteryCmds)
 local CalcEggPrice = require(Library.Balancing.CalcEggPrice)
 local EventUpgrades = require(Library.Directory.EventUpgrades)
+local Eggs_Directory = require(Library.Directory.Eggs)
 
 Network.Fire("Idle Tracking: Stop Timer")
 
@@ -207,6 +211,7 @@ local function debugTrack()
 end
 
 local function TeleportPlayer(cf)
+    HumanoidRootPart.Anchored = false
     HumanoidRootPart.CFrame = cf
     SafePart.CFrame = cf - Vector3.new(0,3,0)
 end
@@ -419,6 +424,44 @@ Network.Fired("Orbs: Create"):Connect(function(Orbs)
     Network.Fire("Orbs: Collect", Collect)
 end)
 
+Network.Fired("CustomEggs_Updated"):Connect(function(p194)
+    for id, data in pairs(p194) do
+		if eggs[id] then
+			if data.hatchable then
+                eggs[id].hatchable = data.hatchable
+            end
+            if data.renderable then
+                eggs[id].renderable = data.renderable
+            end
+		end
+	end
+end)
+Network.Fired("CustomEggs_Broadcast"):Connect(function(data)
+    local model = THINGS.CustomEggs:WaitForChild(data.uid, 60)
+    local position = model:GetPivot().Position
+    eggs[data.uid] = {
+        ["model"] = model,
+        ["position"] = position,
+        ["hatchable"] = data.hatchable,
+        ["renderable"] = data.renderable,
+        ["id"] = data.id,
+        ["uid"] = data.uid,
+        ["dir"] = Eggs_Directory[data.id]
+    }
+end)
+
+for uid, data in pairs(CustomEggsCmds.All()) do
+    eggs[uid] = {
+        ["model"] = data._model,
+        ["position"] = data._position,
+        ["hatchable"] = data._hatchable,
+        ["renderable"] = data._renderable,
+        ["id"] = data._id,
+        ["uid"] = data._uid,
+        ["dir"] = data._dir
+    }
+end
+
 local function updateEuids()
     if type(PetNetworking.EquippedPets()) ~= "table" then return end
 
@@ -444,6 +487,7 @@ local function updateEuids()
         local euids = vm:Get("Euids")
         for _, v in pairs(pets) do
             if v.ePet and v.ePet.euid and not euids[v.ePet.euid] then
+                print("new pet")
                 vm:TableSet("Euids", v.ePet.euid, v.ePet)
                 vm:TableInsert("PetIDs", v.ePet.euid)
             end
@@ -466,27 +510,6 @@ local function updateEuids()
         for _, v in ipairs(validPets) do vm:TableInsert("PetIDs", v) end
         validPets = nil
     end)
-end
-
-local function IsInDottedBox()
-    if Workspace:FindFirstChild("Map") then return MapCmds.IsInDottedBox() end
-    for _, child in ipairs(ReplicatedStorage:FindFirstChild("Map"):GetChildren()) do
-        local bz = child:FindFirstChild("INTERACT") and child:FindFirstChild("INTERACT"):FindFirstChild("BREAK_ZONES")
-        if bz then
-            for _, zone in ipairs(bz:GetChildren()) do
-                if zone:IsA("BasePart") then
-                    local rel = zone.CFrame:PointToObjectSpace(HumanoidRootPart.Position)
-                    local size = zone.Size / 2
-                    if math.abs(rel.X) <= size.X 
-                    and math.abs(rel.Z) <= size.Z then
-                        return true
-                    end
-                end
-            end
-        end
-    end
-
-    return false
 end
 
 updateEuids()
@@ -586,7 +609,7 @@ task.spawn(function()
     local discovered_Huge_titan = {}
     local localPlayer = game:GetService("Players").LocalPlayer
 
-local function getPetLabel(data)
+    local function getPetLabel(data)
         local prefix = ""
 
         if data.sh then
@@ -704,7 +727,7 @@ local function getPetLabel(data)
         end
 
         local label = getPetLabel(data)
-        local description = "** No one ** hatched a **" .. label .. "**"
+        local description = "** Someone ** hatched a **" .. label .. "**"
 
         local bodyTable = {
             content = pingText ~= "" and pingText or nil,
@@ -811,8 +834,37 @@ Network.Fired("Raid: Spawned Room"):Connect(function(RoomNumber)
     Network.Invoke("LuckyRaidBossKey_Combine",1)
 end)
 
-
+HumanoidRootPart.Anchored = true
 EnterInstance("LuckyEventWorld")
+
+if Settings["Hatch Starter Pets"] then
+    Network.Invoke("Pick Starter Pets", "Cat", "Dog")
+    local StartingTime = os.time()
+
+    task.defer(function()
+        StatusStat:Update("Hatching Starter Pets...")
+    end)
+    repeat
+        TeleportPlayer(CFrame.new(1671, -137, -2416))
+        local closestEggId, minDistance = nil, math.huge
+        
+        for Id, data in pairs(eggs) do
+            if not (data.hatchable and data.renderable and data.position) then continue end
+            
+            local distance = (data.position - HumanoidRootPart.Position).Magnitude
+            
+            if distance <= 30 and distance < minDistance then
+                closestEggId = Id
+                minDistance = distance
+            end
+        end
+        
+        if closestEggId then
+            Network.Invoke("CustomEggs_Hatch", closestEggId, 2)
+        end
+        task.wait(0.1)
+    until (os.time() - StartingTime) >= 300
+end
 
 if Raid.Enabled then
     while task.wait() do
@@ -964,25 +1016,28 @@ if Raid.Enabled then
             mainfound = true
 
             if Raid["Egg Settings"].Enabled and Save.Get().RaidEggMultiplier and Save.Get().RaidEggMultiplier >= Raid["Egg Settings"].MinimumEggMulti and CurrencyCmds.CanAfford("LuckyCoins", Raid["Egg Settings"].MinimumLuckyCoins) then
-                EnterInstance("LuckyEgg")
-            
+                print("Teleporting to egg")
+                Network.Fire("Instancing_PlayerLeaveInstance", "LuckyRaid")
+                task.wait(0.1)
+                Network.Invoke("Instancing_PlayerEnterInstance", "LuckyEgg")
+                TeleportPlayer(CFrame.new(3443, -167, 3534))
                 local LuckyEgg
                 local EggPrice
                 local EggPosition
-            
+                local EggId
                 repeat task.wait()
-                    for UID, data in next, CustomEggsCmds.All() do
-                        if not (data._hatchable and data._renderable and data._position) then continue end
+                    for UID, data in pairs(eggs) do
+                        if not (data.hatchable and data.renderable and data.position) then continue end
                     
                         local Power = EventUpgradeCmds.GetPower("LuckyRaidEggCost")
                         local CheaperEggs = MasteryCmds.HasPerk("Eggs", "CheaperEggs") and MasteryCmds.GetPerkPower("Eggs", "CheaperEggs") or 0
-                    
-                        EggPrice = CalcEggPrice(data._dir) * (1 - Power / 100) * (1 - CheaperEggs / 100)
+                        EggPrice = CalcEggPrice(data.dir) * (1 - Power / 100) * (1 - CheaperEggs / 100)
                         LuckyEgg = UID
-                        EggPosition = data._position
+                        EggPosition = data.position
                         break
                     end
                 until LuckyEgg and EggPrice
+
             
                 local StartingTime = os.time()
                 local MaxEggHatch = EggCmds.GetMaxHatch()
@@ -1005,6 +1060,7 @@ if Raid.Enabled then
     end
 else
     while task.wait() do
+        mainfound = true
         task.defer(function()
             StatusStat:Update("Hatching Area Egg...")
         end)
@@ -1012,10 +1068,10 @@ else
 
         local closestEggId, minDistance = nil, math.huge
         
-        for Id, data in pairs(CustomEggsCmds.All()) do
-            if not (data._hatchable and data._renderable and data._position) then continue end
+        for Id, data in pairs(eggs) do
+            if not (data.hatchable and data.renderable and data.position) then continue end
             
-            local distance = (data._position - HumanoidRootPart.Position).Magnitude
+            local distance = (data.position - HumanoidRootPart.Position).Magnitude
             
             if distance <= 30 and distance < minDistance then
                 closestEggId = Id
