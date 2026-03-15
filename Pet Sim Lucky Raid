@@ -1,7 +1,12 @@
+if _G.Started then
+    return
+end
+_G.Started = true
+
 local defaultConfig = {
     ["Raid Settings"] = {
         Enabled = true,
-        Difficulty = 9999,
+        Difficulty = "Max",
 
         OpenLeprechaunChest = false,
 
@@ -14,7 +19,7 @@ local defaultConfig = {
     },
     ["Webhook"] = {
         url = "",
-        ["Discord Id to ping"] = {},
+        ["Discord Id to ping"] = {"0"},
     },
 }
 
@@ -100,8 +105,21 @@ local THINGS = Workspace:FindFirstChild("__THINGS")
 local Instances = THINGS and THINGS:FindFirstChild("Instances")
 local ActiveInstances = workspace.__THINGS.__INSTANCE_CONTAINER.Active
 local __FAKE_INSTANCE_BREAK_ZONES = workspace.__THINGS.__FAKE_INSTANCE_BREAK_ZONES
-__FAKE_INSTANCE_BREAK_ZONES.Parent = ReplicatedStorage
+THINGS.Parent = ReplicatedStorage
 ActiveInstances.Parent = ReplicatedStorage
+local mainfound = false
+local chestsPos = {}
+local mainPos = Vector3.new(0,0,0)
+
+local THINGS_Delete = {
+    "Breakables", "Eggs", "HiddenPresents","Pets","ZoneEggs"
+}
+
+for _, child in ipairs(THINGS:GetChildren()) do
+    if table.find(THINGS_Delete, child.Name) then
+        child:Destroy()
+    end
+end
 
 Player.PlayerScripts.Scripts.Core["Server Closing"].Enabled = false
 Player.PlayerScripts.Scripts.Core["Idle Tracking"].Enabled = false
@@ -110,11 +128,14 @@ Player.Idled:Connect(function()
 	VirtualUser:ClickButton2(Vector2.new()) 
 end)
 
--- Workspace.__DEBRIS:Destroy()
--- Workspace.__THINGS:Destroy()
--- Player.PlayerScripts:ClearAllChildren()
--- Player.PlayerGui:ClearAllChildren()
-
+task.spawn(function()
+    repeat
+        task.wait(1)
+    until mainfound
+    Workspace.__DEBRIS:Destroy()
+    Player.PlayerScripts:ClearAllChildren()
+    Player.PlayerGui:ClearAllChildren()
+end)
 
 local Library = ReplicatedStorage.Library
 
@@ -201,45 +222,90 @@ local function EnterInstance(Name)
 	end
 end
 
-local function GetUpgradeTypes(ID)
-    if ID:find("XP") then return "XP" end
-    if ID:find("Damage") then return "Damage" end
-    if ID:find("AttackSpeed") then return "AttackSpeed" end
-    if ID:find("Pets") then return "Pets" end
+Network.Invoke("LuckyRaidUpgrades_Reset")
+local upgradeMaxTiers = {
+    LuckyRaidTitanicChest = 99,
+    LuckyRaidHugeChest = 99,
+    LuckyRaidXP = 13,
+    LuckyRaidBetterLoot = 0,
+    LuckyRaidPetSpeed = 0,
+    LuckyRaidMoreCurrency = 0,
+    LuckyRaidBossHugeChances = 99,
+    LuckyRaidEggCost = 0,
+    LuckyRaidAttackSpeed = 10,
+    LuckyRaidPets = 20,
+    LuckyRaidDamage = 17,
+    LuckyRaidKeyDrops = 0,
+    LuckyRaidBossTitanicChances = 99,
+}
+
+local function GetUpgradeType(upgradeId)
+    if upgradeId:find("XP") then return "XP" end
+    if upgradeId:find("Damage") then return "Damage" end
+    if upgradeId:find("AttackSpeed") then return "AttackSpeed" end
+    if upgradeId:find("Pets") then return "Pets" end
     return "Other"
 end
-local RequiredUpgrades = {XP = false, Damage = false, AttackSpeed = false, Pets = false}
 
-local LuckyUpgrades = {}
-for ID, Data in next, EventUpgrades do
-    if ID:find("LuckyRaid") then
-        LuckyUpgrades[ID] = Data
+local requiredTypes = { XP = false, Damage = false, AttackSpeed = false, Pets = false }
+
+local luckyUpgrades = {}
+for upgradeId, data in next, EventUpgrades do
+    if upgradeId:find("LuckyRaid") then
+        luckyUpgrades[upgradeId] = data
     end
 end
-local Orb = Items.Misc("Lucky Raid Orb V2")
+
+local orbItem = Items.Misc("Lucky Raid Orb V2")
+
 local function PurchaseUpgrades()
-    local Upgrade, LowestCost = nil, math.huge
-	for ID, Data in next, LuckyUpgrades do
-        local UpgradeType = GetUpgradeTypes(ID)
-        local Tier = EventUpgradeCmds.GetTier(ID)
-        if not Data.TierCosts[Tier + 1] or not Data.TierCosts[Tier + 1]._data then
-			if table.find(RequiredUpgrades, UpgradeType) then
-            	RequiredUpgrades[UpgradeType] = true
-			end
-			continue
-		end
-		if UpgradeType ~= "Other" or (UpgradeType == "Other" and RequiredUpgrades["XP"] and RequiredUpgrades["Damage"] and RequiredUpgrades["AttackSpeed"] and RequiredUpgrades["Pets"]) then
-            local Cost = Data.TierCosts[Tier + 1]._data._am or 1
-            if Cost and Cost < LowestCost and Orb:CountExact() >= Cost then
-                LowestCost = Cost
-                Upgrade = ID
+    local cheapestUpgrade = nil
+    local lowestCost      = math.huge
+
+    local allRequiredDone = requiredTypes.XP
+        and requiredTypes.Damage
+        and requiredTypes.AttackSpeed
+        and requiredTypes.Pets
+
+    for upgradeId, data in next, luckyUpgrades do
+        local upgradeType = GetUpgradeType(upgradeId)
+        local currentTier = EventUpgradeCmds.GetTier(upgradeId)
+        local nextTierData = data.TierCosts[currentTier + 1]
+
+        local maxTier = upgradeMaxTiers[upgradeId]
+        if maxTier ~= nil and currentTier >= maxTier then
+            if requiredTypes[upgradeType] ~= nil then
+                requiredTypes[upgradeType] = true
             end
+            continue
+        end
+
+        if not nextTierData or not nextTierData._data then
+            if requiredTypes[upgradeType] ~= nil then
+                requiredTypes[upgradeType] = true
+            end
+            continue
+        end
+
+        local isRequired = upgradeType ~= "Other"
+        if not isRequired and not allRequiredDone then
+            continue
+        end
+
+        local cost     = nextTierData._data._am or 1
+        local canAfford = orbItem:CountExact() >= cost
+
+        if canAfford and cost < lowestCost then
+            lowestCost      = cost
+            cheapestUpgrade = upgradeId
         end
     end
-	if Upgrade then
-		EventUpgradeCmds.Purchase(Upgrade)
-	end
-    return Upgrade
+
+    if cheapestUpgrade then
+        EventUpgradeCmds.Purchase(cheapestUpgrade)
+    end
+
+    return cheapestUpgrade
 end
 
 -- local function onBreakablesDestroyed(data)
@@ -299,7 +365,7 @@ local function onBreakablesCreated(data)
         if not allBreakables[key] then
             if DEBUG_BREAKABLES then
                 local Part = Instance.new("Part", Workspace)
-                Part.Size = Vector3.new(2, 2, 2)
+                Part.Size = Vector3.new(20, 20, 20)
                 Part.Position = breakableData[1].pos
                 Part.Color = Color3.new(1,0,0)
                 Part.CanCollide = false
@@ -675,7 +741,7 @@ local function getPetLabel(data)
         end
     end
 
-    while task.wait(1) do
+    while task.wait() do
         Data = Save.Get()
 
         for UUID, data in pairs(Data.Inventory.Pet) do
@@ -802,7 +868,9 @@ if Raid.Enabled then
                 task.wait()
             until __FAKE_INSTANCE_BREAK_ZONES:FindFirstChild("Main", true)
             __FAKE_INSTANCE_BREAK_ZONES:FindFirstChild("Main", true).CanCollide = true
-
+            __FAKE_INSTANCE_BREAK_ZONES:FindFirstChild("Main", true):Clone()
+            mainPos = __FAKE_INSTANCE_BREAK_ZONES:FindFirstChild("Main", true).CFrame
+            
             local completed = false
             local total = 0
             Network.Fired("Raid: Completed"):Once(function()
@@ -832,13 +900,15 @@ if Raid.Enabled then
                 if chestId:find("Sign") then
                     continue
                 end
-            
+                            
                 if chestId:find("Leprechaun") then
                     if not Raid.OpenLeprechaunChest then
                         continue
                     end
                 end
-            
+
+                chestsPos[chestId] = chestData.Model:FindFirstChildOfClass("MeshPart").CFrame
+                
                 if chestData.Opened then
                     continue
                 end
@@ -872,7 +942,26 @@ if Raid.Enabled then
                 task.wait(0.2)
             end
 
+            for chestId, chestsPos in pairs(chestsPos) do
+                TeleportPlayer(chestsPos)
+                local success, reason
+                repeat
+                    task.wait()
+                    success, reason = Network.Invoke("Raids_OpenChest", chestId)
+                    if string.find(reason or "tier", "tier") then
+                        success = true
+                    end
+                until success
+                chestCount += 1
+                task.defer(function()
+                    StatusStat:Update("Opened " .. chestCount .. " Chest(s)")
+                end)
+            
+                task.wait(0.2)
+            end
+            task.wait(0.2)
             task.defer(function() StatusStat:Update("Raid Complete!") end)
+            mainfound = true
 
             if Raid["Egg Settings"].Enabled and Save.Get().RaidEggMultiplier and Save.Get().RaidEggMultiplier >= Raid["Egg Settings"].MinimumEggMulti and CurrencyCmds.CanAfford("LuckyCoins", Raid["Egg Settings"].MinimumLuckyCoins) then
                 EnterInstance("LuckyEgg")
