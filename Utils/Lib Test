@@ -1,0 +1,631 @@
+local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
+local CoreGui = game:GetService("CoreGui")
+
+local Library = {}
+Library.__index = Library
+
+-- Drag-Helper: verhindert Konflikt zwischen Drag und Click
+local function MakeDraggable(topbarobject, object)
+	local Dragging = false
+	local DragInput
+	local DragStart
+	local StartPosition
+	local DragMoved = false
+
+	local function Update(input)
+		if not (DragStart and StartPosition) then return end
+		local Delta = input.Position - DragStart
+		if math.abs(Delta.X) > 5 or math.abs(Delta.Y) > 5 then
+			DragMoved = true
+		end
+		if DragMoved then
+			object.Position = UDim2.new(
+				StartPosition.X.Scale,
+				StartPosition.X.Offset + Delta.X,
+				StartPosition.Y.Scale,
+				StartPosition.Y.Offset + Delta.Y
+			)
+		end
+	end
+
+	topbarobject.InputBegan:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1
+			or input.UserInputType == Enum.UserInputType.Touch then
+
+			Dragging = true
+			DragMoved = false
+			DragStart = input.Position
+			StartPosition = object.Position
+
+			input.Changed:Connect(function()
+				if input.UserInputState == Enum.UserInputState.End then
+					Dragging = false
+					DragInput = nil
+				end
+			end)
+		end
+	end)
+
+	topbarobject.InputChanged:Connect(function(input)
+		if Dragging and (
+			input.UserInputType == Enum.UserInputType.MouseMovement
+			or input.UserInputType == Enum.UserInputType.Touch
+		) then
+			DragInput = input
+		end
+	end)
+
+	UserInputService.InputChanged:Connect(function(input)
+		if Dragging and input == DragInput then
+			Update(input)
+		end
+	end)
+
+	return function() return DragMoved end
+end
+
+local function FormatValue(Value: string | number)
+	local n = tonumber(Value)
+	if not n then return tostring(Value) end
+
+	local suffixes = { "", "k", "M", "B", "T", "QD", "QN", "SX", "SP" }
+	local index = 1
+	local absNumber = math.abs(n)
+
+	while absNumber >= 1000 and index < #suffixes do
+		absNumber = absNumber / 1000
+		index = index + 1
+	end
+
+	local sign = n < 0 and "-" or ""
+	local formatted
+	if absNumber >= 100 then
+		formatted = string.format("%.0f", absNumber)
+	elseif absNumber >= 10 then
+		formatted = string.format("%.1f", absNumber):gsub("%.0$", "")
+	else
+		formatted = string.format("%.2f", absNumber):gsub("%.?0+$", "")
+	end
+
+	return sign .. formatted .. suffixes[index]
+end
+
+local function FlashLabel(label: TextLabel)
+	TweenService:Create(label, TweenInfo.new(0.08, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+		TextTransparency = 0.4,
+	}):Play()
+	task.delay(0.08, function()
+		TweenService:Create(label, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+			TextTransparency = 0,
+		}):Play()
+	end)
+end
+
+function Library:CreateWindow(TitleText: string)
+	local WindowObj = {}
+	local IsFullscreen = true
+
+	-- Grid-Tracking für Fullscreen 2-Spalten Layout
+	local CurrentGridRow = nil
+	local GridRowCount = 0
+
+	local Hasty = Instance.new("ScreenGui")
+	Hasty.Name = "HastyLib"
+	Hasty.Parent = CoreGui
+	Hasty.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+	Hasty.IgnoreGuiInset = true
+	Hasty.ResetOnSpawn = false
+
+	-- Fullscreen BG
+	local FullscreenBG = Instance.new("Frame")
+	FullscreenBG.Name = "FullscreenBackground"
+	FullscreenBG.Parent = Hasty
+	FullscreenBG.BackgroundColor3 = Color3.fromRGB(14, 19, 30)
+	FullscreenBG.BorderSizePixel = 0
+	FullscreenBG.Size = UDim2.new(1, 0, 1, 0)
+	FullscreenBG.Visible = true
+
+	local Watermark = Instance.new("ImageLabel")
+	Watermark.Name = "Watermark"
+	Watermark.Parent = FullscreenBG
+	Watermark.BackgroundTransparency = 1.000
+	Watermark.Size = UDim2.new(1, 0, 1, 0)
+	Watermark.Image = "rbxassetid://94472596251951"
+	Watermark.ImageTransparency = 0.950
+
+	local FullTitleLabel = Instance.new("TextLabel")
+	FullTitleLabel.Name = "Title"
+	FullTitleLabel.Parent = FullscreenBG
+	FullTitleLabel.BackgroundTransparency = 1.000
+	FullTitleLabel.Position = UDim2.new(0.15, 0, 0.05, 0)
+	FullTitleLabel.Size = UDim2.new(0.7, 0, 0.10, 0)
+	FullTitleLabel.Font = Enum.Font.FredokaOne
+	FullTitleLabel.Text = TitleText
+	FullTitleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+	FullTitleLabel.TextScaled = true
+	FullTitleLabel.TextWrapped = true
+
+	local FullTitleGradient = Instance.new("UIGradient")
+	FullTitleGradient.Color = ColorSequence.new({
+		ColorSequenceKeypoint.new(0, Color3.fromRGB(30, 255, 180)),
+		ColorSequenceKeypoint.new(1, Color3.fromRGB(0, 160, 140))
+	})
+	FullTitleGradient.Rotation = 90
+	FullTitleGradient.Parent = FullTitleLabel
+
+	-- Fullscreen ScrollingFrame + Container für Grid
+	local FullScrollFrame = Instance.new("ScrollingFrame")
+	FullScrollFrame.Name = "FullScrollFrame"
+	FullScrollFrame.Parent = FullscreenBG
+	FullScrollFrame.BackgroundTransparency = 1
+	FullScrollFrame.BorderSizePixel = 0
+	FullScrollFrame.Position = UDim2.new(0.15, 0, 0.18, 0)
+	FullScrollFrame.Size = UDim2.new(0.7, 0, 0.72, 0)
+	FullScrollFrame.ScrollBarThickness = 3
+	FullScrollFrame.ScrollBarImageColor3 = Color3.fromRGB(30, 255, 180)
+	FullScrollFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
+
+	local FullContainer = Instance.new("Frame")
+	FullContainer.Name = "FullContainer"
+	FullContainer.Parent = FullScrollFrame
+	FullContainer.BackgroundTransparency = 1
+	FullContainer.Size = UDim2.new(1, 0, 1, 0)
+	FullContainer.AutomaticSize = Enum.AutomaticSize.Y
+
+	local FullListLayout = Instance.new("UIListLayout")
+	FullListLayout.Parent = FullContainer
+	FullListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+	FullListLayout.Padding = UDim.new(0, 10)
+
+	FullListLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+		FullScrollFrame.CanvasSize = UDim2.new(0, 0, 0, FullListLayout.AbsoluteContentSize.Y + 10)
+	end)
+
+	-- Mini / Float Frame
+	local MainFrame = Instance.new("Frame")
+	MainFrame.Name = "MainFrame"
+	MainFrame.Parent = Hasty
+	MainFrame.BackgroundColor3 = Color3.fromRGB(20, 24, 35)
+	MainFrame.Position = UDim2.new(0.5, -150, 0.5, -200)
+	MainFrame.Size = UDim2.new(0, 300, 0, 400)
+	MainFrame.BorderSizePixel = 0
+	MainFrame.Visible = false
+
+	local MainCorner = Instance.new("UICorner")
+	MainCorner.CornerRadius = UDim.new(0, 8)
+	MainCorner.Parent = MainFrame
+
+	local MainStroke = Instance.new("UIStroke")
+	MainStroke.Color = Color3.fromRGB(45, 50, 65)
+	MainStroke.Thickness = 2
+	MainStroke.Parent = MainFrame
+
+	local TitleBar = Instance.new("Frame")
+	TitleBar.Name = "TitleBar"
+	TitleBar.Parent = MainFrame
+	TitleBar.BackgroundTransparency = 1.000
+	TitleBar.Size = UDim2.new(1, 0, 0, 40)
+
+	local MiniTitleLabel = Instance.new("TextLabel")
+	MiniTitleLabel.Name = "Title"
+	MiniTitleLabel.Parent = TitleBar
+	MiniTitleLabel.BackgroundTransparency = 1.000
+	MiniTitleLabel.Position = UDim2.new(0, 15, 0, 0)
+	MiniTitleLabel.Size = UDim2.new(1, -30, 1, 0)
+	MiniTitleLabel.Font = Enum.Font.FredokaOne
+	MiniTitleLabel.Text = TitleText
+	MiniTitleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+	MiniTitleLabel.TextSize = 22
+	MiniTitleLabel.TextXAlignment = Enum.TextXAlignment.Left
+
+	local MiniTitleGradient = Instance.new("UIGradient")
+	MiniTitleGradient.Color = ColorSequence.new({
+		ColorSequenceKeypoint.new(0, Color3.fromRGB(30, 255, 180)),
+		ColorSequenceKeypoint.new(1, Color3.fromRGB(0, 160, 140))
+	})
+	MiniTitleGradient.Rotation = 0
+	MiniTitleGradient.Parent = MiniTitleLabel
+
+	MakeDraggable(TitleBar, MainFrame)
+
+	local MiniContainer = Instance.new("ScrollingFrame")
+	MiniContainer.Name = "Container"
+	MiniContainer.Parent = MainFrame
+	MiniContainer.Active = true
+	MiniContainer.BackgroundTransparency = 1.000
+	MiniContainer.BorderSizePixel = 0
+	MiniContainer.Position = UDim2.new(0, 0, 0, 50)
+	MiniContainer.Size = UDim2.new(1, 0, 1, -60)
+	MiniContainer.ScrollBarThickness = 2
+	MiniContainer.ScrollBarImageColor3 = Color3.fromRGB(30, 255, 180)
+
+	local MiniListLayout = Instance.new("UIListLayout")
+	MiniListLayout.Parent = MiniContainer
+	MiniListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+	MiniListLayout.Padding = UDim.new(0, 4)
+
+	local MiniPadding = Instance.new("UIPadding")
+	MiniPadding.Parent = MiniContainer
+	MiniPadding.PaddingLeft = UDim.new(0, 12)
+	MiniPadding.PaddingRight = UDim.new(0, 12)
+	MiniPadding.PaddingTop = UDim.new(0, 4)
+
+	MiniListLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+		MiniContainer.CanvasSize = UDim2.new(0, 0, 0, MiniListLayout.AbsoluteContentSize.Y + 10)
+	end)
+
+	-- Float Toggle Button
+	local FloatToggleBtn = Instance.new("ImageButton")
+	FloatToggleBtn.Name = "FloatingToggle"
+	FloatToggleBtn.Parent = Hasty
+	FloatToggleBtn.BackgroundColor3 = Color3.fromRGB(30, 255, 180)
+	FloatToggleBtn.Position = UDim2.new(0.9, 0, 0.9, -60)
+	FloatToggleBtn.Size = UDim2.new(0, 50, 0, 50)
+	FloatToggleBtn.ZIndex = 10
+	FloatToggleBtn.AutoButtonColor = true
+	FloatToggleBtn.Image = "rbxassetid://94472596251951"
+
+	local FloatCorner = Instance.new("UICorner")
+	FloatCorner.CornerRadius = UDim.new(1, 0)
+	FloatCorner.Parent = FloatToggleBtn
+
+	local FloatStroke = Instance.new("UIStroke")
+	FloatStroke.Thickness = 2
+	FloatStroke.Color = Color3.fromRGB(255, 255, 255)
+	FloatStroke.Parent = FloatToggleBtn
+
+	local FloatShadow = Instance.new("ImageLabel")
+	FloatShadow.Name = "Shadow"
+	FloatShadow.Parent = FloatToggleBtn
+	FloatShadow.BackgroundTransparency = 1
+	FloatShadow.Position = UDim2.new(0, -15, 0, -15)
+	FloatShadow.Size = UDim2.new(1, 30, 1, 30)
+	FloatShadow.ZIndex = 9
+	FloatShadow.Image = "rbxassetid://94472596251951"
+	FloatShadow.ImageColor3 = Color3.fromRGB(0, 0, 0)
+	FloatShadow.ImageTransparency = 0.6
+	FloatShadow.SliceCenter = Rect.new(10, 10, 118, 118)
+
+	local getFloatDragMoved = MakeDraggable(FloatToggleBtn, FloatToggleBtn)
+
+	local function ToggleView()
+		if getFloatDragMoved() then return end
+		IsFullscreen = not IsFullscreen
+		if IsFullscreen then
+			FullscreenBG.Visible = true
+			MainFrame.Visible = false
+		else
+			FullscreenBG.Visible = false
+			MainFrame.Visible = true
+		end
+	end
+	FloatToggleBtn.MouseButton1Click:Connect(ToggleView)
+
+
+	-- Hilfsfunktion: neue Grid-Row für Fullscreen
+	local function NewGridRow()
+		local Row = Instance.new("Frame")
+		Row.Name = "StatRow"
+		Row.Parent = FullContainer
+		Row.BackgroundTransparency = 1
+		Row.Size = UDim2.new(1, 0, 0, 72)
+
+		local RowLayout = Instance.new("UIListLayout")
+		RowLayout.Parent = Row
+		RowLayout.FillDirection = Enum.FillDirection.Horizontal
+		RowLayout.SortOrder = Enum.SortOrder.LayoutOrder
+		RowLayout.Padding = UDim.new(0, 10)
+
+		return Row
+	end
+
+
+	-- =====================
+	-- AddSeperator
+	-- =====================
+	function WindowObj:AddSeperator()
+		-- Separator bricht das Grid auf
+		CurrentGridRow = nil
+		GridRowCount = 0
+
+		local FullSepFrame = Instance.new("Frame")
+		FullSepFrame.Name = "SeperatorFrame"
+		FullSepFrame.Parent = FullContainer
+		FullSepFrame.BackgroundTransparency = 1
+		FullSepFrame.Size = UDim2.new(1, 0, 0, 20)
+
+		local FullLine = Instance.new("Frame")
+		FullLine.Name = "Line"
+		FullLine.Parent = FullSepFrame
+		FullLine.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+		FullLine.BorderSizePixel = 0
+		FullLine.Size = UDim2.new(1, 0, 0, 2)
+		FullLine.Position = UDim2.new(0, 0, 0.5, 0)
+
+		local FullGradient = Instance.new("UIGradient")
+		FullGradient.Color = ColorSequence.new({
+			ColorSequenceKeypoint.new(0.00, Color3.fromRGB(14, 19, 30)),
+			ColorSequenceKeypoint.new(0.50, Color3.fromRGB(30, 255, 180)),
+			ColorSequenceKeypoint.new(1.00, Color3.fromRGB(14, 19, 30))
+		})
+		FullGradient.Parent = FullLine
+
+		local MiniSpacer = Instance.new("Frame")
+		MiniSpacer.Name = "SepSpacer"
+		MiniSpacer.BackgroundTransparency = 1
+		MiniSpacer.Size = UDim2.new(1, 0, 0, 8)
+		MiniSpacer.Parent = MiniContainer
+
+		local MiniLine = Instance.new("Frame")
+		MiniLine.Name = "Seperator"
+		MiniLine.Parent = MiniSpacer
+		MiniLine.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+		MiniLine.BackgroundTransparency = 0
+		MiniLine.BorderSizePixel = 0
+		MiniLine.Size = UDim2.new(1, 0, 0, 1)
+		MiniLine.Position = UDim2.new(0, 0, 0.5, 0)
+
+		local MiniGradient = Instance.new("UIGradient")
+		MiniGradient.Color = ColorSequence.new({
+			ColorSequenceKeypoint.new(0.00, Color3.fromRGB(20, 24, 35)),
+			ColorSequenceKeypoint.new(0.50, Color3.fromRGB(30, 255, 180)),
+			ColorSequenceKeypoint.new(1.00, Color3.fromRGB(20, 24, 35))
+		})
+		MiniGradient.Parent = MiniLine
+
+		return {}
+	end
+
+
+	-- =====================
+	-- AddStat
+	-- Fullscreen: 2-Spalten Grid-Karten (Wert groß oben, Name klein unten)
+	-- Mini: Kompakte Zeile  Name : Wert
+	-- =====================
+	function WindowObj:AddStat(StatName: string, InitialValue: string | number, Format: boolean?)
+		local shouldFormat = if Format == nil then true else Format
+		local StatObj = {}
+
+		local displayValue = if shouldFormat then FormatValue(InitialValue) else tostring(InitialValue)
+
+		-- === FULLSCREEN: Grid-Karte ===
+		if CurrentGridRow == nil or GridRowCount >= 2 then
+			CurrentGridRow = NewGridRow()
+			GridRowCount = 0
+		end
+		GridRowCount = GridRowCount + 1
+
+		local FullStatCard = Instance.new("Frame")
+		FullStatCard.Name = "StatCard_" .. StatName
+		FullStatCard.Parent = CurrentGridRow
+		FullStatCard.BackgroundColor3 = Color3.fromRGB(22, 28, 42)
+		FullStatCard.BorderSizePixel = 0
+		-- Breite: ~50% minus halbes Gap (10px), gesteuert durch HorizontalListLayout
+		FullStatCard.Size = UDim2.new(0.5, -5, 1, 0)
+
+		local CardCorner = Instance.new("UICorner")
+		CardCorner.CornerRadius = UDim.new(0, 10)
+		CardCorner.Parent = FullStatCard
+
+		local CardStroke = Instance.new("UIStroke")
+		CardStroke.Color = Color3.fromRGB(35, 45, 65)
+		CardStroke.Thickness = 1
+		CardStroke.Parent = FullStatCard
+
+		-- Wert: groß, oben
+		local FullValueLabel = Instance.new("TextLabel")
+		FullValueLabel.Name = "Value"
+		FullValueLabel.Parent = FullStatCard
+		FullValueLabel.BackgroundTransparency = 1
+		FullValueLabel.Position = UDim2.new(0, 12, 0, 8)
+		FullValueLabel.Size = UDim2.new(1, -16, 0.50, 0)
+		FullValueLabel.Font = Enum.Font.GothamBold
+		FullValueLabel.Text = displayValue
+		FullValueLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+		FullValueLabel.TextScaled = true
+		FullValueLabel.TextXAlignment = Enum.TextXAlignment.Left
+
+		local FullValueGradient = Instance.new("UIGradient")
+		FullValueGradient.Color = ColorSequence.new({
+			ColorSequenceKeypoint.new(0, Color3.fromRGB(30, 255, 180)),
+			ColorSequenceKeypoint.new(1, Color3.fromRGB(0, 200, 160))
+		})
+		FullValueGradient.Parent = FullValueLabel
+
+		-- Name: klein, unten
+		local FullStatLabel = Instance.new("TextLabel")
+		FullStatLabel.Name = "Label"
+		FullStatLabel.Parent = FullStatCard
+		FullStatLabel.BackgroundTransparency = 1
+		FullStatLabel.Position = UDim2.new(0, 12, 0.54, 0)
+		FullStatLabel.Size = UDim2.new(1, -16, 0.36, 0)
+		FullStatLabel.Font = Enum.Font.GothamMedium
+		FullStatLabel.Text = StatName
+		FullStatLabel.TextColor3 = Color3.fromRGB(135, 148, 168)
+		FullStatLabel.TextScaled = true
+		FullStatLabel.TextXAlignment = Enum.TextXAlignment.Left
+
+		-- Dezenter Akzentbalken unten
+		local AccentBar = Instance.new("Frame")
+		AccentBar.Name = "AccentBar"
+		AccentBar.Parent = FullStatCard
+		AccentBar.BackgroundColor3 = Color3.fromRGB(30, 255, 180)
+		AccentBar.BorderSizePixel = 0
+		AccentBar.Position = UDim2.new(0, 0, 1, -3)
+		AccentBar.Size = UDim2.new(0.35, 0, 0, 3)
+
+		local AccentCorner = Instance.new("UICorner")
+		AccentCorner.CornerRadius = UDim.new(0, 2)
+		AccentCorner.Parent = AccentBar
+
+		-- === MINI: Kompakte Zeile  Name : Wert ===
+		local MiniRow = Instance.new("Frame")
+		MiniRow.Name = "MiniStat_" .. StatName
+		MiniRow.Parent = MiniContainer
+		MiniRow.BackgroundTransparency = 1
+		MiniRow.BorderSizePixel = 0
+		MiniRow.Size = UDim2.new(1, 0, 0, 22)
+
+		local MiniNameLabel = Instance.new("TextLabel")
+		MiniNameLabel.Name = "Name"
+		MiniNameLabel.Parent = MiniRow
+		MiniNameLabel.BackgroundTransparency = 1
+		MiniNameLabel.Position = UDim2.new(0, 0, 0, 0)
+		MiniNameLabel.Size = UDim2.new(0.52, 0, 1, 0)
+		MiniNameLabel.Font = Enum.Font.GothamMedium
+		MiniNameLabel.Text = StatName
+		MiniNameLabel.TextColor3 = Color3.fromRGB(155, 165, 182)
+		MiniNameLabel.TextSize = 12
+		MiniNameLabel.TextXAlignment = Enum.TextXAlignment.Left
+
+		local MiniColon = Instance.new("TextLabel")
+		MiniColon.Name = "Colon"
+		MiniColon.Parent = MiniRow
+		MiniColon.BackgroundTransparency = 1
+		MiniColon.Position = UDim2.new(0.52, 0, 0, 0)
+		MiniColon.Size = UDim2.new(0.06, 0, 1, 0)
+		MiniColon.Font = Enum.Font.GothamBold
+		MiniColon.Text = ":"
+		MiniColon.TextColor3 = Color3.fromRGB(30, 255, 180)
+		MiniColon.TextSize = 12
+		MiniColon.TextXAlignment = Enum.TextXAlignment.Center
+
+		local MiniValueLabel = Instance.new("TextLabel")
+		MiniValueLabel.Name = "Value"
+		MiniValueLabel.Parent = MiniRow
+		MiniValueLabel.BackgroundTransparency = 1
+		MiniValueLabel.Position = UDim2.new(0.58, 0, 0, 0)
+		MiniValueLabel.Size = UDim2.new(0.42, 0, 1, 0)
+		MiniValueLabel.Font = Enum.Font.GothamBold
+		MiniValueLabel.Text = displayValue
+		MiniValueLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+		MiniValueLabel.TextSize = 12
+		MiniValueLabel.TextXAlignment = Enum.TextXAlignment.Right
+
+		-- Update
+		function StatObj:Update(NewValue)
+			local valueStr = if shouldFormat then FormatValue(NewValue) else tostring(NewValue)
+			if FullValueLabel.Text == valueStr then return end
+			task.defer(function()
+				FullValueLabel.Text = valueStr
+				MiniValueLabel.Text = valueStr
+				FlashLabel(FullValueLabel)
+				FlashLabel(MiniValueLabel)
+			end)
+		end
+
+		function StatObj:SetName(NewName: string)
+			FullStatLabel.Text = NewName
+			MiniNameLabel.Text = NewName
+		end
+
+		function StatObj:Destroy()
+			FullStatCard:Destroy()
+			MiniRow:Destroy()
+		end
+
+		return StatObj
+	end
+
+
+	-- =====================
+	-- AddButton
+	-- =====================
+	function WindowObj:AddButton(Text: string, Callback)
+		local ButtonObj = {}
+
+		-- Button bricht Grid auf
+		CurrentGridRow = nil
+		GridRowCount = 0
+
+		-- Fullscreen Button
+		local FullBtn = Instance.new("TextButton")
+		FullBtn.Name = "FullBtn_" .. Text
+		FullBtn.Parent = FullContainer
+		FullBtn.BackgroundColor3 = Color3.fromRGB(28, 36, 54)
+		FullBtn.Size = UDim2.new(1, 0, 0, 44)
+		FullBtn.Font = Enum.Font.GothamBold
+		FullBtn.Text = Text
+		FullBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+		FullBtn.TextSize = 16
+		FullBtn.AutoButtonColor = false
+		FullBtn.BorderSizePixel = 0
+
+		local FullBtnCorner = Instance.new("UICorner")
+		FullBtnCorner.CornerRadius = UDim.new(0, 8)
+		FullBtnCorner.Parent = FullBtn
+
+		local FullBtnStroke = Instance.new("UIStroke")
+		FullBtnStroke.Color = Color3.fromRGB(30, 255, 180)
+		FullBtnStroke.Thickness = 1
+		FullBtnStroke.Parent = FullBtn
+
+		-- Mini Button
+		local MiniBtn = Instance.new("TextButton")
+		MiniBtn.Name = "Button_" .. Text
+		MiniBtn.Parent = MiniContainer
+		MiniBtn.BackgroundColor3 = Color3.fromRGB(35, 40, 55)
+		MiniBtn.Size = UDim2.new(1, 0, 0, 32)
+		MiniBtn.Font = Enum.Font.GothamBold
+		MiniBtn.Text = Text
+		MiniBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+		MiniBtn.TextSize = 13
+		MiniBtn.AutoButtonColor = false
+		MiniBtn.BorderSizePixel = 0
+
+		local MiniCorner = Instance.new("UICorner")
+		MiniCorner.CornerRadius = UDim.new(0, 6)
+		MiniCorner.Parent = MiniBtn
+
+		local function AnimateClick(btn, originalColor)
+			local tw = TweenService:Create(btn, TweenInfo.new(0.1), {
+				BackgroundColor3 = Color3.fromRGB(30, 255, 180)
+			})
+			tw:Play()
+			tw.Completed:Wait()
+			TweenService:Create(btn, TweenInfo.new(0.2), { BackgroundColor3 = originalColor }):Play()
+		end
+
+		FullBtn.MouseEnter:Connect(function()
+			TweenService:Create(FullBtn, TweenInfo.new(0.15), { BackgroundColor3 = Color3.fromRGB(38, 50, 74) }):Play()
+		end)
+		FullBtn.MouseLeave:Connect(function()
+			TweenService:Create(FullBtn, TweenInfo.new(0.15), { BackgroundColor3 = Color3.fromRGB(28, 36, 54) }):Play()
+		end)
+		FullBtn.MouseButton1Click:Connect(function()
+			AnimateClick(FullBtn, Color3.fromRGB(28, 36, 54))
+			Callback()
+		end)
+
+		MiniBtn.MouseEnter:Connect(function()
+			TweenService:Create(MiniBtn, TweenInfo.new(0.15), { BackgroundColor3 = Color3.fromRGB(45, 52, 70) }):Play()
+		end)
+		MiniBtn.MouseLeave:Connect(function()
+			TweenService:Create(MiniBtn, TweenInfo.new(0.15), { BackgroundColor3 = Color3.fromRGB(35, 40, 55) }):Play()
+		end)
+		MiniBtn.MouseButton1Click:Connect(function()
+			AnimateClick(MiniBtn, Color3.fromRGB(35, 40, 55))
+			Callback()
+		end)
+
+		function ButtonObj:SetText(NewText: string)
+			MiniBtn.Text = NewText
+			FullBtn.Text = NewText
+		end
+
+		function ButtonObj:SetEnabled(Enabled: boolean)
+			MiniBtn.Active = Enabled
+			FullBtn.Active = Enabled
+			local t = if Enabled then 0 else 0.5
+			MiniBtn.TextTransparency = t
+			FullBtn.TextTransparency = t
+		end
+
+		return ButtonObj
+	end
+
+	return WindowObj
+end
+
+return Library
