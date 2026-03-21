@@ -5,7 +5,7 @@ local RunService = game:GetService("RunService")
 local Stats = game:GetService("Stats")
 local Players = game:GetService("Players")
 local HttpService = game:GetService("HttpService")
-local LocalPlayer = Players.LocalPlayer
+local LocalPlayer = Players.LocalPlayer 
 
 function Utils:FormatTime(sec: number | string): string
     local seconds: number = tonumber(sec) or 0
