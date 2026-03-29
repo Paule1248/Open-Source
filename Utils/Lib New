@@ -413,10 +413,11 @@ function Library:CreateWindow(TitleText: string)
 		function StatObj:Update(NewValue)
 		    local valueStr = tostring(NewValue)
 		
-		    task.defer(function()
-		        FullValueLabel.Text = valueStr
-		        MiniValueLabel.Text = valueStr
-		    end)
+		    function StatObj:Update(NewValue)
+			    local valueStr = tostring(NewValue)
+			    FullValueLabel.Text = valueStr
+			    MiniValueLabel.Text = valueStr
+			end
 		end
 
 		table.insert(StatsList, StatObj)
