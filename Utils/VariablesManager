@@ -1,4 +1,4 @@
-local VariablesManager = {}
+local VariablesManager = {}a
 VariablesManager.__index = VariablesManager
 
 local getType = (typeof or type)
