@@ -5,59 +5,6 @@ local CoreGui = game:GetService("CoreGui")
 local Library = {}
 Library.__index = Library
 
-local function MakeDraggable(topbarobject, object)
-	local Dragging = false
-	local DragInput
-	local DragStart
-	local StartPosition
-
-	local function Update(input)
-		if not (DragStart and StartPosition) then
-			return
-		end
-
-		local Delta = input.Position - DragStart
-		object.Position = UDim2.new(
-			StartPosition.X.Scale,
-			StartPosition.X.Offset + Delta.X,
-			StartPosition.Y.Scale,
-			StartPosition.Y.Offset + Delta.Y
-		)
-	end
-
-	topbarobject.InputBegan:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.MouseButton1
-			or input.UserInputType == Enum.UserInputType.Touch then
-
-			Dragging = true
-			DragStart = input.Position
-			StartPosition = object.Position
-
-			input.Changed:Connect(function()
-				if input.UserInputState == Enum.UserInputState.End then
-					Dragging = false
-					DragInput = nil
-				end
-			end)
-		end
-	end)
-
-	topbarobject.InputChanged:Connect(function(input)
-		if Dragging and (
-			input.UserInputType == Enum.UserInputType.MouseMovement
-			or input.UserInputType == Enum.UserInputType.Touch
-		) then
-			DragInput = input
-		end
-	end)
-
-	UserInputService.InputChanged:Connect(function(input)
-		if Dragging and input == DragInput then
-			Update(input)
-		end
-	end)
-end
-
 local function FormatValue(Value: string | number)
     local n = tonumber(Value)
     
@@ -196,8 +143,6 @@ function Library:CreateWindow(TitleText: string)
 	MiniTitleGradient.Rotation = 0
 	MiniTitleGradient.Parent = MiniTitleLabel
 
-	MakeDraggable(TitleBar, MainFrame)
-
 	local MiniContainer = Instance.new("ScrollingFrame")
 	MiniContainer.Name = "Container"
 	MiniContainer.Parent = MainFrame
@@ -266,7 +211,6 @@ function Library:CreateWindow(TitleText: string)
 			MainFrame.Visible = true
 		end
 	end
-	MakeDraggable(FloatToggleBtn, FloatToggleBtn)
 	FloatToggleBtn.MouseButton1Click:Connect(ToggleView)
 
 
@@ -293,7 +237,6 @@ function Library:CreateWindow(TitleText: string)
 		})
 		FullGradient.Parent = FullLine
 
-		-- Minimized Separator
 		local MiniSpacer = Instance.new("Frame")
 		MiniSpacer.Name = "SepSpacer"
 		MiniSpacer.BackgroundTransparency = 1
@@ -411,13 +354,11 @@ function Library:CreateWindow(TitleText: string)
 		end
 
 		function StatObj:Update(NewValue)
-		    local valueStr = tostring(NewValue)
-		
-		    function StatObj:Update(NewValue)
-			    local valueStr = tostring(NewValue)
-			    FullValueLabel.Text = valueStr
-			    MiniValueLabel.Text = valueStr
-			end
+			pcall(function()
+				local valueStr = tostring(NewValue)
+				FullValueLabel.Text = valueStr
+				MiniValueLabel.Text = valueStr
+			end)
 		end
 
 		table.insert(StatsList, StatObj)
