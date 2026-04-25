@@ -98,77 +98,6 @@ function Library:CreateWindow(TitleText: string)
 	FullListLayout.SortOrder = Enum.SortOrder.LayoutOrder
 	FullListLayout.Padding = UDim.new(0, 10)
 
-	local MainFrame = Instance.new("Frame")
-	MainFrame.Name = "MainFrame"
-	MainFrame.Parent = Hasty
-	MainFrame.BackgroundColor3 = Color3.fromRGB(20, 24, 35)
-	MainFrame.Position = UDim2.new(0.5, -150, 0.5, -200)
-	MainFrame.Size = UDim2.new(0, 300, 0, 400)
-	MainFrame.BorderSizePixel = 0
-	MainFrame.Visible = false
-
-	local MainCorner = Instance.new("UICorner")
-	MainCorner.CornerRadius = UDim.new(0, 8)
-	MainCorner.Parent = MainFrame
-
-	local MainStroke = Instance.new("UIStroke")
-	MainStroke.Color = Color3.fromRGB(45, 50, 65)
-	MainStroke.Thickness = 2
-	MainStroke.Parent = MainFrame
-
-	local TitleBar = Instance.new("Frame")
-	TitleBar.Name = "TitleBar"
-	TitleBar.Parent = MainFrame
-	TitleBar.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-	TitleBar.BackgroundTransparency = 1.000
-	TitleBar.Size = UDim2.new(1, 0, 0, 40)
-
-	local MiniTitleLabel = Instance.new("TextLabel")
-	MiniTitleLabel.Name = "Title"
-	MiniTitleLabel.Parent = TitleBar
-	MiniTitleLabel.BackgroundTransparency = 1.000
-	MiniTitleLabel.Position = UDim2.new(0, 15, 0, 0)
-	MiniTitleLabel.Size = UDim2.new(1, -30, 1, 0)
-	MiniTitleLabel.Font = Enum.Font.FredokaOne
-	MiniTitleLabel.Text = TitleText
-	MiniTitleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-	MiniTitleLabel.TextSize = 22
-	MiniTitleLabel.TextXAlignment = Enum.TextXAlignment.Left
-
-	local MiniTitleGradient = Instance.new("UIGradient")
-	MiniTitleGradient.Color = ColorSequence.new({
-		ColorSequenceKeypoint.new(0, Color3.fromRGB(30, 255, 180)),
-		ColorSequenceKeypoint.new(1, Color3.fromRGB(0, 160, 140))
-	})
-	MiniTitleGradient.Rotation = 0
-	MiniTitleGradient.Parent = MiniTitleLabel
-
-	local MiniContainer = Instance.new("ScrollingFrame")
-	MiniContainer.Name = "Container"
-	MiniContainer.Parent = MainFrame
-	MiniContainer.Active = true
-	MiniContainer.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-	MiniContainer.BackgroundTransparency = 1.000
-	MiniContainer.BorderSizePixel = 0
-	MiniContainer.Position = UDim2.new(0, 0, 0, 50)
-	MiniContainer.Size = UDim2.new(1, 0, 1, -60)
-	MiniContainer.ScrollBarThickness = 2
-	MiniContainer.ScrollBarImageColor3 = Color3.fromRGB(30, 255, 180)
-
-	local MiniListLayout = Instance.new("UIListLayout")
-	MiniListLayout.Parent = MiniContainer
-	MiniListLayout.SortOrder = Enum.SortOrder.LayoutOrder
-	MiniListLayout.Padding = UDim.new(0, 6)
-
-	local MiniPadding = Instance.new("UIPadding")
-	MiniPadding.Parent = MiniContainer
-	MiniPadding.PaddingLeft = UDim.new(0, 15)
-	MiniPadding.PaddingRight = UDim.new(0, 15)
-
-	MiniListLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
-		MiniContainer.CanvasSize = UDim2.new(0, 0, 0, MiniListLayout.AbsoluteContentSize.Y + 10)
-	end)
-
 	local FloatToggleBtn = Instance.new("ImageButton")
 	FloatToggleBtn.Name = "FloatingToggle"
 	FloatToggleBtn.Parent = Hasty
@@ -180,7 +109,7 @@ function Library:CreateWindow(TitleText: string)
 	FloatToggleBtn.Image = "rbxassetid://94472596251951"
 
 	local FloatCorner = Instance.new("UICorner")
-	FloatCorner.CornerRadius = UDim.new(1, 0) -- Kreisform
+	FloatCorner.CornerRadius = UDim.new(1, 0)
 	FloatCorner.Parent = FloatToggleBtn
 
 	local FloatStroke = Instance.new("UIStroke")
@@ -205,10 +134,8 @@ function Library:CreateWindow(TitleText: string)
 
 		if IsFullscreen then
 			FullscreenBG.Visible = true
-			MainFrame.Visible = false
 		else
 			FullscreenBG.Visible = false
-			MainFrame.Visible = true
 		end
 	end
 	FloatToggleBtn.MouseButton1Click:Connect(ToggleView)
@@ -236,30 +163,6 @@ function Library:CreateWindow(TitleText: string)
 			ColorSequenceKeypoint.new(1.00, Color3.fromRGB(14, 19, 30))
 		})
 		FullGradient.Parent = FullLine
-
-		local MiniSpacer = Instance.new("Frame")
-		MiniSpacer.Name = "SepSpacer"
-		MiniSpacer.BackgroundTransparency = 1
-		MiniSpacer.Size = UDim2.new(1, 0, 0, 10)
-		MiniSpacer.Parent = MiniContainer
-
-		local MiniLine = Instance.new("Frame")
-		MiniLine.Name = "Seperator"
-		MiniLine.Parent = MiniSpacer
-		MiniLine.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-		MiniLine.BackgroundTransparency = 0
-		MiniLine.BorderSizePixel = 0
-		MiniLine.Size = UDim2.new(1, 0, 0, 2)
-		MiniLine.Position = UDim2.new(0, 0, 0.5, 0)
-
-		local MiniGradient = Instance.new("UIGradient")
-		MiniGradient.Color = ColorSequence.new({
-			ColorSequenceKeypoint.new(0.00, Color3.fromRGB(20, 24, 35)),
-			ColorSequenceKeypoint.new(0.50, Color3.fromRGB(30, 255, 180)),
-			ColorSequenceKeypoint.new(1.00, Color3.fromRGB(20, 24, 35))
-		})
-		MiniGradient.Parent = MiniLine
-
 		return {}
 	end
 
@@ -312,52 +215,14 @@ function Library:CreateWindow(TitleText: string)
 		})
 		FullValueGradient.Parent = FullValueLabel
 
-		local MiniStatFrame = Instance.new("Frame")
-		MiniStatFrame.Name = "StatFrame_" .. StatName
-		MiniStatFrame.Parent = MiniContainer
-		MiniStatFrame.BackgroundColor3 = Color3.fromRGB(30, 35, 45)
-		MiniStatFrame.BackgroundTransparency = 0.5
-		MiniStatFrame.BorderSizePixel = 0
-		MiniStatFrame.Size = UDim2.new(1, 0, 0, 35)
-
-		local MiniCorner = Instance.new("UICorner")
-		MiniCorner.CornerRadius = UDim.new(0, 6)
-		MiniCorner.Parent = MiniStatFrame
-
-		local MiniNameLabel = Instance.new("TextLabel")
-		MiniNameLabel.Name = "Name"
-		MiniNameLabel.Parent = MiniStatFrame
-		MiniNameLabel.BackgroundTransparency = 1
-		MiniNameLabel.Position = UDim2.new(0, 10, 0, 0)
-		MiniNameLabel.Size = UDim2.new(0.5, -10, 1, 0)
-		MiniNameLabel.Font = Enum.Font.GothamMedium
-		MiniNameLabel.Text = StatName
-		MiniNameLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
-		MiniNameLabel.TextSize = 14
-		MiniNameLabel.TextXAlignment = Enum.TextXAlignment.Left
-
-		local MiniValueLabel = Instance.new("TextLabel")
-		MiniValueLabel.Name = "Value"
-		MiniValueLabel.Parent = MiniStatFrame
-		MiniValueLabel.BackgroundTransparency = 1
-		MiniValueLabel.Position = UDim2.new(0.5, 0, 0, 0)
-		MiniValueLabel.Size = UDim2.new(0.5, -10, 1, 0)
-		MiniValueLabel.Font = Enum.Font.GothamBold
-		MiniValueLabel.Text = InitialValue
-		MiniValueLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-		MiniValueLabel.TextSize = 14
-		MiniValueLabel.TextXAlignment = Enum.TextXAlignment.Right
-
 		if shouldFormat then
 			FullValueLabel.Text = FormatValue(InitialValue)
-			MiniValueLabel.Text = FormatValue(InitialValue)
 		end
 
 		function StatObj:Update(NewValue)
 			pcall(function()
 				local valueStr = tostring(NewValue)
 				FullValueLabel.Text = valueStr
-				MiniValueLabel.Text = valueStr
 			end)
 		end
 
@@ -365,33 +230,7 @@ function Library:CreateWindow(TitleText: string)
 		return StatObj
 	end
 	function WindowObj:AddButton(Text: string, Callback)
-	    local ButtonObj = {}
-		
-	    local MiniBtn = Instance.new("TextButton")
-	    MiniBtn.Name = "Button_" .. Text
-	    MiniBtn.Parent = MiniContainer
-	    MiniBtn.BackgroundColor3 = Color3.fromRGB(35, 40, 55)
-	    MiniBtn.Size = UDim2.new(1, 0, 0, 35)
-	    MiniBtn.Font = Enum.Font.GothamBold
-	    MiniBtn.Text = Text
-	    MiniBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-	    MiniBtn.TextSize = 14
-		MiniBtn.AutoButtonColor = false
-		
-	    local Corner = Instance.new("UICorner")
-	    Corner.CornerRadius = UDim.new(0, 6)
-	    Corner.Parent = MiniBtn
-		
-	    MiniBtn.MouseButton1Click:Connect(function()
-	        local tween = TweenService:Create(MiniBtn, TweenInfo.new(0.1), {BackgroundColor3 = Color3.fromRGB(30, 255, 180)})
-	        tween:Play()
-	        tween.Completed:Wait()
-	        TweenService:Create(MiniBtn, TweenInfo.new(0.1), {BackgroundColor3 = Color3.fromRGB(35, 40, 55)}):Play()
-		
-	        Callback()
-	    end)
-
-	    return ButtonObj
+	    return nil
 	end
 	return WindowObj
 end
