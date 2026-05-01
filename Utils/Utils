@@ -17,7 +17,13 @@ function Utils:FormatTime(sec: number | string): string
     return string.format("%02d:%02d:%02d", hours, minutes, secs)
 end
 
-local suffixes = {"", "K", "M", "B", "T", "Qa", "Qi", "Sx", "Sp", "Oc", "No", "Dc"}
+local suffixes = {
+    "", "K", "M", "B", "T",
+    "Qa", "Qi", "Sx", "Sp", "Oc", "No", "Dc",
+    "Ud", "Dd", "Td", "Qad", "Qid", "Sxd", "Spd", "Ocd", "Nod", "Vg",
+    "Uvg", "Dvg", "Tvg", "Qavg", "Qivg", "Sxvg", "Spvg", "Ocvg", "Novg", "Tg",
+    "Utg", "Dtg", "Ttg", "Qatg", "Qitg", "Sxtg", "Sptg", "Octg", "Notg", "Qag"
+}
 function Utils:FormatNumber(n)
     n = tonumber(n) or 0
     if n < 1000 then return tostring(math.floor(n)) end
