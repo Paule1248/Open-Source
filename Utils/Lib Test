@@ -11,9 +11,7 @@ local function StartUpdateLoop()
 	task.spawn(function()
 		while task.wait(0.1) do
 			for label, value in pairs(_updateQueue) do
-				pcall(function()
-					label.Text = value
-				end)
+				label.Text = value
 				_updateQueue[label] = nil
 			end
 		end
@@ -80,31 +78,6 @@ function Library:CreateWindow(TitleText: string, CreateUI: boolean?)
 	local WindowObj = {}
 	local StatsList = {}
 	local IsFullscreen = true
-    -- CreateUI = true
-	-- if not CreateUI then
-	-- 	function WindowObj:AddStat(_, InitialValue)
-	-- 		local StatObj = {}
-	-- 		local currentValue = InitialValue
-	-- 		function StatObj:Update(NewValue)
-	-- 			currentValue = NewValue
-	-- 		end
-	-- 		function StatObj:Get()
-	-- 			return currentValue
-	-- 		end
-	-- 		return StatObj
-	-- 	end
-	-- 	function WindowObj:AddSeperator() return {} end
-	-- 	function WindowObj:AddButton(_, Callback)
-	-- 		return {
-	-- 			Fire = function()
-	-- 				if type(Callback) == "function" then
-	-- 					pcall(Callback)
-	-- 				end
-	-- 			end
-	-- 		}
-	-- 	end
-	-- 	return WindowObj
-	-- end
 
 	local Hasty = CreateScreenGui()
 
@@ -274,6 +247,8 @@ function Library:CreateWindow(TitleText: string, CreateUI: boolean?)
 		})
 		FullValueGradient.Parent = FullValueLabel
 
+		-- FIX: Nur in die Queue schreiben, NIE direkt label.Text setzen.
+		-- Der Update-Loop-Thread hat die Capability, der aufrufende User-Thread nicht.
 		function StatObj:Update(NewValue)
 			currentValue = tostring(NewValue)
 			_updateQueue[FullValueLabel] = currentValue
