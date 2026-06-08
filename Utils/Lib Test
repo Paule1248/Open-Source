@@ -50,9 +50,6 @@ local function CreateScreenGui()
 		local cg
 		local ok = pcall(function() cg = game:GetService("CoreGui") end)
 		if ok and cg then
-			local rg = cg:FindFirstChild("RobloxGui")
-			if rg then return rg end
-
 			local Main = Instance.new("ScreenGui")
 			Main.Name = "HastyLib"
 			Main.ResetOnSpawn = false
