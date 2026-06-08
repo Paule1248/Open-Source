@@ -20,59 +20,61 @@ local function StartUpdateLoop()
 end
 
 local function CreateScreenGui()
-	local Players = game:GetService("Players")
-	local CoreGui = game:GetService("CoreGui")
-
-	local function getHiddenParent()
-		local gh = (type(get_hidden_gui) == "function" and get_hidden_gui)
-			or (type(gethui) == "function" and gethui)
-
-		if gh then
-			local ok, result = pcall(gh)
-			if ok and result then
-				return result
-			end
-		end
-
-		return nil
-	end
-
-	local function newGui(parent)
-		local gui = Instance.new("ScreenGui")
-		gui.Name = "HastyLib"
-		gui.ResetOnSpawn = false
-		gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-		gui.IgnoreGuiInset = true
-		gui.Parent = parent
-		return gui
-	end
-
-	local hiddenParent = getHiddenParent()
-	if hiddenParent then
-		return newGui(hiddenParent)
-	end
-
-	if syn and syn.protect_gui then
-		local gui = newGui(CoreGui)
-		pcall(function()
-			syn.protect_gui(gui)
+	if get_hidden_gui or gethui then
+		local success, returned = pcall(function()
+			local hui = (get_hidden_gui or gethui)()
+			local Main = Instance.new("ScreenGui")
+			Main.Name = "HastyLib"
+			Main.ResetOnSpawn = false
+			Main.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+			Main.IgnoreGuiInset = true
+			Main.Parent = hui
+			return Main
 		end)
-		return gui
+		if success then
+			return returned
+		end
 	end
 
-	local ok, cg = pcall(function()
-		return CoreGui
-	end)
-	if ok and cg then
-		return newGui(cg)
+	if (not is_sirhurt_closure) and (syn and syn.protect_gui) then
+		local cg
+		local ok = pcall(function() cg = game:GetService("CoreGui") end)
+		if ok and cg then
+			local Main = Instance.new("ScreenGui")
+			Main.Name = "HastyLib"
+			Main.ResetOnSpawn = false
+			Main.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+			Main.IgnoreGuiInset = true
+			syn.protect_gui(Main)
+			Main.Parent = cg
+			return Main
+		end
 	end
 
-	local player = Players.LocalPlayer
+	do
+		local cg
+		local ok = pcall(function() cg = game:GetService("CoreGui") end)
+		if ok and cg then
+			local Main = Instance.new("ScreenGui")
+			Main.Name = "HastyLib"
+			Main.ResetOnSpawn = false
+			Main.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+			Main.IgnoreGuiInset = true
+			Main.Parent = cg
+			return Main
+		end
+	end
+
+	local player = game:GetService("Players").LocalPlayer
 	local playerGui = player and player:WaitForChild("PlayerGui", 5)
-
-	return newGui(playerGui)
+	local Main = Instance.new("ScreenGui")
+	Main.Name = "HastyLib"
+	Main.ResetOnSpawn = false
+	Main.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+	Main.IgnoreGuiInset = true
+	Main.Parent = playerGui
+	return Main
 end
-
 
 function Library:CreateWindow(TitleText: string, CreateUI: boolean?)
 	local WindowObj = {}
