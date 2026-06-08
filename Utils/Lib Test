@@ -21,19 +21,14 @@ end
 
 local function CreateScreenGui()
 	if get_hidden_gui or gethui then
-		local success, returned = pcall(function()
-			local hui = (get_hidden_gui or gethui)()
-			local Main = Instance.new("ScreenGui")
-			Main.Name = "HastyLib"
-			Main.ResetOnSpawn = false
-			Main.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-			Main.IgnoreGuiInset = true
-			Main.Parent = hui
-			return Main
-		end)
-		if success then
-			return returned
-		end
+		local hui = (get_hidden_gui or gethui)()
+		local Main = Instance.new("ScreenGui")
+		Main.Name = "HastyLib"
+		Main.ResetOnSpawn = false
+		Main.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+		Main.IgnoreGuiInset = true
+		Main.Parent = hui
+		return Main
 	end
 
 	if (not is_sirhurt_closure) and (syn and syn.protect_gui) then
