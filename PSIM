@@ -37,6 +37,8 @@ Safe_Part.CFrame = HumanoidRootPart.CFrame - Vector3.new(0,5,0)
 local MAX_BREAKABLES = 8
 local RANGE = 200
 local AutoFarmBreakables = false
+local AutoFarmBreakables2 = false
+local AutoFarmBreakablesArea = false
 
 local Auto_Teleport = false
 local Teleportable_Breakables = {}
@@ -51,6 +53,7 @@ local __MAP = Workspace:WaitForChild("__MAP")
 
 local All_Eggs_Available = {}
 local All_Giant_Chest = {"Giant Relic Chest"}
+local All_Areas = {}
 
 local Selected_Egg = nil
 local AutoHatch = false
@@ -68,6 +71,8 @@ local Rendering_Mode = false
 
 local Giant_Chest_Selected = nil
 local Auto_Farm_Giant = false
+local AreaToFarm = nil
+local AutoFarmArea = false
 
 local Auto_Buy_Gems = false
 local Auto_Progress = false
@@ -724,7 +729,6 @@ local function AddCoin(id, data)
     if not id or not pos then return end
     
     ServerCoins[id] = data
-    
 
     if not workspace:FindFirstChild(id) then
         local p = Instance.new("Part")
@@ -788,7 +792,7 @@ local MaxBreakablesSlider = autoFarmTab:CreateSlider({
 
 local SliderRange = autoFarmTab:CreateSlider({
 	Name = "Range",
-	Range = {0, 300},
+	Range = {0, 9999},
 	Increment = 10,
 	Suffix = "Studs",
 	CurrentValue = RANGE,
@@ -820,9 +824,6 @@ local AutoFarmBreakablesToggle = autoFarmTab:CreateToggle({
 		AutoFarmBreakables = Value
 		if AutoFarmBreakables then
             task.spawn(function()
-                
-                local FarmOnlyDiamonds = false 
-                
                 while AutoFarmBreakables do
                     if not player.Character or not player.Character:FindFirstChild("HumanoidRootPart") then 
                         task.wait(0.5) 
@@ -840,18 +841,11 @@ local AutoFarmBreakablesToggle = autoFarmTab:CreateToggle({
 
                         for id, coin in pairs(ServerCoins) do
                             if coin.p and (coin.p - HumanoidRootPart.Position).Magnitude <= RANGE then
-                                local isDiamond = false
-                                if coin.n then
-                                    isDiamond = coin.n:lower():find("diamond") ~= nil
-                                end
-                                
-                                if not FarmOnlyDiamonds or isDiamond then                                    
-                                    table.insert(validTargets, {
-                                        id = id,
-                                        p = coin.p,
-                                        distance = (coin.p - HumanoidRootPart.Position).Magnitude
-                                    })
-                                end
+                                table.insert(validTargets, {
+                                    id = id,
+                                    p = coin.p,
+                                    distance = (coin.p - HumanoidRootPart.Position).Magnitude
+                                })
                             end
                         end
                         for id, coin in pairs(ServerCoins) do
@@ -872,18 +866,7 @@ local AutoFarmBreakablesToggle = autoFarmTab:CreateToggle({
                         table.sort(validTargets, function(a, b)
                             return a.distance < b.distance
                         end)
-                        
-                        if #validTargets == 0 then
-                            for id, coin in pairs(ServerCoins) do
-                                if coin.p and (coin.p - HumanoidRootPart.Position).Magnitude <= RANGE then
-                                    table.insert(validTargets, {id = id, p = coin.p})
-                                end
-                            end
-                        
-                            table.sort(validTargets, function(a, b)
-                                return (a.p - HumanoidRootPart.Position).Magnitude < (b.p - HumanoidRootPart.Position).Magnitude
-                            end)
-                        end
+
                         local targetLimit = math.min(#validTargets, MAX_BREAKABLES)
                         if targetLimit > 0 then
                             for i, petUID in ipairs(equippedPets) do
@@ -913,6 +896,173 @@ local AutoFarmBreakablesToggle = autoFarmTab:CreateToggle({
 	end,
 })
 
+local AutoFarmBreakablesToggle2 = autoFarmTab:CreateToggle({
+	Name = "Auto Farm Breakables2",
+	CurrentValue = false,
+	Flag = "AutoFarmBreakables2",
+	Callback = function(Value)
+		AutoFarmBreakables2 = Value
+		if AutoFarmBreakables2 then
+            task.spawn(function()
+                while AutoFarmBreakables2 do
+                    if not player.Character or not player.Character:FindFirstChild("HumanoidRootPart") then 
+                        task.wait(0.5) 
+                        continue
+                    end
+                    HumanoidRootPart = player.Character.HumanoidRootPart
+
+                    local equippedPets = {}
+                    for euid, petDta in pairs(PetCmds.GetEquipped()) do
+                        table.insert(equippedPets, petDta.uid)
+                    end
+                    
+                    if #equippedPets > 0 then
+                        local validTargets = {}
+
+                        for id, coin in pairs(ServerCoins) do
+                            if coin.p and (coin.p - HumanoidRootPart.Position).Magnitude <= RANGE then
+                                table.insert(validTargets, {
+                                    id = id,
+                                    p = coin.p,
+                                    distance = (coin.p - HumanoidRootPart.Position).Magnitude
+                                })
+                            end
+                        end
+                        for id, coin in pairs(ServerCoins) do
+                        	local marker = workspace:FindFirstChild(id)
+                        	if marker then
+                        		local isValid = false
+                        		for _, t in ipairs(validTargets) do
+                        			if t.id == id then
+                        				isValid = true
+                        				break
+                        			end
+                        		end
+                        		marker.Color = isValid and Color3.fromRGB(0, 102, 255) or Color3.fromRGB(255, 0, 0)
+                        	end
+                        end
+                        
+                        local targetLimit = math.min(#validTargets, MAX_BREAKABLES)
+                        if targetLimit > 0 then
+                            for i, petUID in ipairs(equippedPets) do
+                            	local target = validTargets[((i - 1) % targetLimit) + 1]
+                            	if target then
+                                    target = validTargets[math.random(1, #validTargets)]
+                            		task.spawn(function()
+                            			local marker = workspace:FindFirstChild(target.id)
+                            			if marker then
+                            				marker.Color = Color3.fromRGB(132, 0, 255)
+                            			end
+                                    
+                            			Network.Invoke("Join Coin", target.id, { petUID })
+                            			Network.Fire("Farm Coin", target.id, petUID)
+                            		end)
+                            	end
+                            end
+
+                        end
+                    end
+                    
+
+                    task.wait(0.2)
+                    validTargets = {}
+                end
+            end)
+		end
+	end,
+})
+
+local Section = autoFarmTab:CreateSection("Auto Farm Area mode")
+
+local Giant_Chest_Select = autoFarmTab:CreateDropdown({
+   Name = "Select Area to farm",
+   Options = AllGameAreas,
+   CurrentOption = {},
+   MultipleOptions = false,
+   Flag = "Dropdown1",
+   Callback = function(Options)
+        AreaToFarm = nil
+        for _, Option in pairs(Options) do
+            AreaToFarm = Option
+            print(AreaToFarm, Option)
+        end
+   end,
+})
+
+local AutoFarmBreakablesToggle2 = autoFarmTab:CreateToggle({
+	Name = "Auto Farm Area Mode",
+	CurrentValue = false,
+	Flag = "AutoFarmBreakablesArea",
+	Callback = function(Value)
+		AutoFarmBreakablesArea = Value
+		if AutoFarmBreakablesArea then
+            task.spawn(function()
+                while AutoFarmBreakablesArea do
+                    if not player.Character or not player.Character:FindFirstChild("HumanoidRootPart") then 
+                        task.wait(0.5) 
+                        continue
+                    end
+                    HumanoidRootPart = player.Character.HumanoidRootPart
+
+                    local equippedPets = {}
+                    for euid, petDta in pairs(PetCmds.GetEquipped()) do
+                        table.insert(equippedPets, petDta.uid)
+                    end
+                    
+                    if #equippedPets > 0 then
+                        local validTargets = {}
+
+                        for id, coin in pairs(ServerCoins) do
+                            if coin.p and coin.a == AreaToFarm then
+                                table.insert(validTargets, {
+                                    id = id,
+                                    p = coin.p,
+                                    distance = (coin.p - HumanoidRootPart.Position).Magnitude
+                                })
+                            end
+                        end
+                        for id, coin in pairs(ServerCoins) do
+                        	local marker = workspace:FindFirstChild(id)
+                        	if marker then
+                        		local isValid = false
+                        		for _, t in ipairs(validTargets) do
+                        			if t.id == id then
+                        				isValid = true
+                        				break
+                        			end
+                        		end
+                        		marker.Color = isValid and Color3.fromRGB(0, 102, 255) or Color3.fromRGB(255, 0, 0)
+                        	end
+                        end
+                        
+                        local targetLimit = math.min(#validTargets, MAX_BREAKABLES)
+                        if targetLimit > 0 then
+                            for i, petUID in ipairs(equippedPets) do
+                            	local target = validTargets[((i - 1) % targetLimit) + 1]
+                            	if target then
+                            		task.spawn(function()
+                            			local marker = workspace:FindFirstChild(target.id)
+                            			if marker then
+                            				marker.Color = Color3.fromRGB(132, 0, 255)
+                            			end
+                                    
+                            			Network.Invoke("Join Coin", target.id, { petUID })
+                            			Network.Fire("Farm Coin", target.id, petUID)
+                            		end)
+                            	end
+                            end
+
+                        end
+                    end
+                    
+
+                    task.wait(0.2)
+                    validTargets = {}
+                end
+            end)
+		end
+	end,
+})
 
 local Section = autoFarmTab:CreateSection("Auto Farm Giant Chest")
 
