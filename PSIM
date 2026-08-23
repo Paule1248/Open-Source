@@ -110,6 +110,10 @@ for egg, Egg_data in pairs(Egg_Directory) do
     table.insert(All_Eggs_Available, egg)
 end
 
+table.sort(All_Eggs_Available, function(a, b)
+    return tostring(a):lower() < tostring(b):lower()
+end)
+
 local function isHugePet(petId)
     if string.find(petId, "Huge") or string.find(petId, "Domortuus Astra") or string.find(petId, "Empyrean Agony") then
         return true
@@ -253,9 +257,9 @@ end)
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local Window = Rayfield:CreateWindow({
-   Name = "Pet Simulator X Overhauled",
+   Name = "PSIM",
    Icon = 0,
-   LoadingTitle = "Pet Simulator X Overhauled",
+   LoadingTitle = "PSIM",
    LoadingSubtitle = "by Paule",
    ShowText = "Rayfield",
    Theme = "Ocean",
@@ -307,8 +311,8 @@ local AutoHatchToggle = Hatching_Tab:CreateToggle({
                         -- Network.Invoke("Buy Egg", Selected_Egg, false,false)
                         -- Network.Invoke("Buy Egg", Selected_Egg, true,false)
                         -- Network.Invoke("Buy Egg", Selected_Egg, false,true)
-                        local Open3 = Data.OwnGamepass and Data.OwnGamepass["Triple Egg Open"] or false
-                        local Open8 = Data.OwnGamepass and Data.OwnGamepass["Octuple Egg Open"] or false
+                        local Open3 = Library.Gamepasses.Owns(Library.Directory.Gamepasses["Triple Egg Open"].ID)
+                        local Open8 = Data.OwnsOctupleEggs or false
                         
                         local Amount3 = Open3 and not Open8
                         local Amount8 = Open8
@@ -481,7 +485,6 @@ local AutoConverGoldToggle = Pet_Tab:CreateToggle({
                         end
                     end
                     for petId, pets in pairs(normalPetsById) do
-                        print(#pets)
                         if #pets <= 5 then
                             continue
                         end
