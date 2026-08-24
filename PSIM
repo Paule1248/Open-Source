@@ -1105,7 +1105,7 @@ local AutoTeleportToBreakables = autoFarmTab:CreateToggle({
 local Section = autoFarmTab:CreateSection("Misc")
 
 local Auto_Buy_Gems_Toggle = autoFarmTab:CreateToggle({
-   Name = "Auto Buy Gems (1,25m)",
+   Name = "Auto Buy Gems (600k)",
    CurrentValue = false,
    Flag = "Toggle1",
    Callback = function(Value)
@@ -1113,7 +1113,7 @@ local Auto_Buy_Gems_Toggle = autoFarmTab:CreateToggle({
         if Auto_Buy_Gems then
             task.spawn(function()
                 while Auto_Buy_Gems do
-                    Network.Invoke("Buy Diamonds", 2)
+                    Network.Invoke("Buy DiamondPack", 2)
                     task.wait(1)
                 end
             end)
