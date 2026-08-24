@@ -158,7 +158,11 @@ end
 
 
 for _, pet in pairs(Data.Pets) do
-    if pet.id and isHugePet(pet.id) then
+    if not pet.id then
+        continue
+    end
+    local name = Pets_Directory[pet.id].name
+    if name and isHugePet(name) then
         table.insert(All_Pets_Inventory, pet.uid)
     end
 end
