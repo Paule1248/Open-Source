@@ -392,6 +392,9 @@ local function formatNumber(n)
     end
 end
 
+local function ConvertIdToName(id)
+
+end
 
 local SendWEbhooktoogle = Hatching_Tab:CreateToggle({
     Name = "Send Huge Pet Notifications",
@@ -405,7 +408,11 @@ local SendWEbhooktoogle = Hatching_Tab:CreateToggle({
                     task.wait(1)
                     Data = Library.Save.Get()
                     for _, pet in pairs(Data.Pets) do
-                        if pet["id"] and isHugePet(pet["id"]) and not table.find(All_Pets_Inventory, pet.uid) then
+                        if not pet.id then
+                            continue
+                        end
+                        local name = Pets_Directory[pet.id].name
+                        if name and isHugePet(name) and not table.find(All_Pets_Inventory, pet.uid) then
                             table.insert(Huges_Hatched, pet.uid)
                             table.insert(All_Pets_Inventory, pet.uid)
                             local baseName = Pets_Directory[pet.id].name or "Unknown Pet"
@@ -1239,4 +1246,462 @@ local Remove_Map_All= Tab:CreateToggle({
             setfpscap(20)
         end
    end,
+})
+
+
+
+
+
+
+
+
+
+
+
+Rayfield:Notify({
+   Title = "Starting custom enchat",
+   Content = "Starting custom enchat",
+   Duration = 2,
+   Image = 4483362458,
+})
+--- custom auto enchant
+
+game:GetService("Players").PauleIstCool0.PlayerScripts.Scripts.GUIs["Enchant Pets"].Disabled = true
+local Library = require(game.ReplicatedStorage:WaitForChild("Framework"):WaitForChild("Library"))
+
+while not Library.Loaded do
+    game:GetService("RunService").Heartbeat:Wait()
+end
+
+local EnchantPets = Library.GUI.EnchantPets
+local EnchantCost = Library.Shared.EnchantCost
+local EnchantHardcoreCost = Library.Shared.EnchantHardcoreCost
+local random = Random.new()
+local u6 = false
+local t1 = {}
+local u8 = false
+local u9 = false
+local u10 = false
+local t2 = {}
+local t3 = {}
+
+function GetEnchants()
+    if #t3 > 0 then
+        return t3
+    end
+
+    for _, v in pairs(Library.Directory.Powers) do
+        table.insert(t3, v)
+    end
+
+    table.sort(t3, function(p1, p2) -- line: 30
+        return p1.dropWeight < p2.dropWeight
+    end)
+
+    return t3
+end
+function UpdateEnchantButton() -- line: 35
+    if u10 then
+        EnchantPets.Side.Enchant.TextLabel.Text = "Stop"
+        EnchantPets.Side.Enchant.HoverImage = "rbxassetid://7045637564"
+        EnchantPets.Side.Enchant.Image = "rbxassetid://7045637481"
+
+        return
+    end
+
+    EnchantPets.Side.Enchant.TextLabel.Text = "Enchant"
+    EnchantPets.Side.Enchant.HoverImage = "rbxassetid://6903539993"
+    EnchantPets.Side.Enchant.Image = "rbxassetid://6869680115"
+end
+function Enchant()
+    if #t1 <= 0 then
+        return
+    end
+
+    local t4 = {}
+
+    for _, uid in ipairs(t1) do
+        local pet = Library.PetCmds.Get(uid)
+        if pet and not HasAutoEnchant(pet) then
+            table.insert(t4, uid)
+        end
+    end
+
+    if #t4 == 0 then
+        u10 = false
+        UpdateEnchantButton()
+        return
+    end
+    local success, err = Library.Network.Invoke("Enchant Pets", t4, u10)
+
+    if not success then
+        Library.Message.New(err or "Something went wrong. Try again!")
+    end
+
+    if #t1 <= 0 or #t2 == 0 then
+        u10 = false
+        UpdateEnchantButton()
+        return
+    end
+    UpdateEnchantButton()
+    Enchant()
+end
+function Select(p3)
+    local v26 = Library.PetCmds.Get(p3)
+
+    if not p3 then
+        return
+    end
+
+    table.insert(t1, p3)
+    Update()
+end
+
+function Deselect(p4) -- line: 139
+    -- upvalues: Library (copy), random (copy), t1 (copy), u8 (ref)
+    Library.Audio.Play("rbxassetid://7139317909", script, random:NextNumber(0.95, 1.05), 0.75)
+    Library.Functions.RemoveTable(t1, p4)
+    u8 = false
+    Update()
+end
+function Update() -- line: 152
+    -- upvalues: EnchantPets (copy), u6 (ref), Library (copy), t2 (copy), t1 (copy)
+    local function UpdateAuto() -- line: 161
+        -- upvalues: EnchantPets (copy), u6 (ref), Library (copy), t2 (copy)
+        local Holder = EnchantPets.Auto.Container.Holder
+        local AutoEnchantButton = Holder.AutoEnchantButton
+        local v70 = GetEnchants()
+
+        AutoEnchantButton.Visible = false
+
+        for _, v in ipairs(v70) do
+            for _, v2 in ipairs(v.tiers) do
+                if not Holder:FindFirstChild(v2.title) and v.canDrop then
+                    local clone = AutoEnchantButton:Clone()
+
+                    clone.Name = v2.title
+                    clone.Label.Text = v2.title
+                    clone.ImageColor3 = Color3.new(0.5, 0.5, 0.5)
+                    clone.Visible = true
+                    clone.Parent = Holder
+                    clone.Activated:Connect(function() -- line: 182
+                        -- upvalues: u6 (ref), Library (copy), t2 (copy), v2 (copy), clone (copy)
+                        if not u6 then
+                            u6 = true
+
+                            if Library.Functions.SearchArray(t2, v2.title) then
+                                Library.Functions.RemoveTable(t2, v2.title)
+                                clone.ImageColor3 = Color3.new(0.5, 0.5, 0.5)
+                            else
+                                table.insert(t2, v2.title)
+                                clone.ImageColor3 = Color3.new(1, 1, 1)
+                            end
+
+                            u6 = false
+                        end
+                    end)
+                    Library.GUIFX.ButtonFX(clone)
+                end
+            end
+        end
+
+        local function Scrolling() -- line: 206
+            -- upvalues: Holder (copy)
+            local UIListLayout = Holder:FindFirstChildOfClass("UIListLayout")
+            local UIPadding = Holder:FindFirstChildOfClass("UIPadding")
+
+            UIListLayout:ApplyLayout()
+            Holder.CanvasSize = UDim2.new(0, 0, 0, UIListLayout.AbsoluteContentSize.Y + UIPadding.PaddingBottom.Offset + UIPadding.PaddingTop.Offset)
+        end
+
+        Scrolling()
+    end
+    local function UpdatePets()
+        for _, child in ipairs(EnchantPets.Holder:GetChildren()) do
+            if child.ClassName == "TextButton" then
+                local childName = child.Name
+                local v80 = Library.Functions.SearchArray(t1, childName)
+
+                child.Equipped.Visible = v80
+                child.BackgroundColor3 = v80 and Color3.fromRGB(69, 239, 69) or Color3.fromRGB(59, 177, 252)
+
+                if not child:GetAttribute("Locked") then
+                    child.BackgroundColor3 = v80 and Color3.fromRGB(69, 239, 69) or Color3.fromRGB(59, 177, 252)
+                    child.PetIcon.ImageTransparency = 0
+                end
+            end
+        end
+    end
+    local function UpdateSide() -- line: 237
+        -- upvalues: t1 (copy), Library (copy), EnchantPets (copy)
+        local v81 = #t1 > 0
+        local v82 = GetCost()
+
+        if Library.Variables.Console then
+            EnchantPets.Side.Enchant.ButtonKeybind.Visible = true
+        else
+            EnchantPets.Side.Enchant.ButtonKeybind.Visible = false
+        end
+
+        local function HasPerk() -- line: 251
+            -- upvalues: Library (copy)
+            local v89 = Library.Save.Get()
+
+            if not v89 then
+                return false
+            end
+
+            local Enchanting = v89.Mastery.Enchanting
+
+            if Enchanting and Library.Shared.MasteryXPToLevel(Enchanting) >= 99 then
+                return true
+            end
+
+            return false
+        end
+
+        local v84 = Library.Save.Get()
+        local v85
+
+        if not v84 then
+            v85 = false
+        else
+            local Enchanting = v84.Mastery.Enchanting
+
+            v85 = not not Enchanting and Library.Shared.MasteryXPToLevel(Enchanting) >= 99
+        end
+
+        if v85 then
+            v82 = math.round(v82 * 0.75)
+        end
+
+        EnchantPets.Side.Enchant.ImageColor3 = v81 and Color3.new(1, 1, 1) or Color3.new(0.5, 0.5, 0.5)
+        EnchantPets.Side.CostFrame.Cost.Text = Library.Functions.Commas(v82)
+    end
+
+    UpdateAuto()
+    UpdatePets()
+    UpdateSide()
+    Scaling()
+end
+function Setup() -- line: 289
+    -- upvalues: Library (copy), EnchantPets (copy), u6 (ref), t1 (copy)
+    local v31 = Library.Save.Get()
+
+    if not v31 then
+        return
+    end
+
+    local n2 = 0
+    local v33 = Library.Shared.SortPets(v31, table.clone(v31.Pets))
+
+    for i, v in ipairs(v33) do
+        local uid = v.uid
+        local _ = v.s
+        local v38 = Library.Directory.Pets[v.id]
+        local rarity = v38.rarity
+
+        if not v38.isPremium and rarity ~= "Secret" and rarity ~= "Mythical" and rarity ~= "Event" and rarity ~= "Exclusive" and not v38.isGift then
+            local clone = Library.Assets.UI.Inventory.Pet:Clone()
+
+            Library.PetUI.Create(clone, uid)
+            clone.LayoutOrder = i
+            clone:SetAttribute("DirId", v.id)
+            clone.Parent = EnchantPets.Holder
+            clone.Activated:Connect(function() -- line: 312
+                -- upvalues: u6 (ref), Library (copy), t1 (copy), uid (copy)
+                if not u6 then
+                    u6 = true
+
+                    if not Library.Functions.SearchArray(t1, uid) then
+                        Select(uid)
+                    else
+                        Deselect(uid)
+                    end
+
+                    u6 = false
+                end
+            end)
+            Library.GUIFX.ButtonFX(clone)
+            n2 += 1
+        end
+    end
+
+    EnchantPets.Container.NoPets.Visible = n2 <= 0
+    Update()
+    Scaling()
+end
+function Scaling() -- line: 337
+    -- upvalues: EnchantPets (copy), Library (copy)
+    local Holder = EnchantPets.Container.Holder
+    local UIGridLayout = Holder:FindFirstChildOfClass("UIGridLayout")
+    local UIPadding = Holder:FindFirstChildOfClass("UIPadding")
+    local v44 = Library.Functions.ResolutionScale()
+    local v45 = (Holder.AbsoluteSize.X - Holder.ScrollBarThickness - UIPadding.PaddingLeft.Offset - UIPadding.PaddingRight.Offset) / (if not (v44 <= 0.5) then not (v44 <= 1.1) and 6 or 5 else 4) - UIGridLayout.CellPadding.X.Offset
+
+    UIGridLayout.CellSize = UDim2.new(0, v45, 0, v45)
+    UIGridLayout:ApplyLayout()
+    Holder.CanvasSize = UDim2.new(0, UIGridLayout.AbsoluteContentSize.X, 0, UIGridLayout.AbsoluteContentSize.Y + 30)
+end
+function Clear() -- line: 353
+    -- upvalues: EnchantPets (copy)
+    for _, child in ipairs(EnchantPets.Holder:GetChildren()) do
+        if child.ClassName == "TextButton" then
+            child:Destroy()
+        end
+    end
+end
+function HasAutoEnchant(p5) -- line: 363
+    -- upvalues: Library (copy), t2 (copy)
+    if p5 then
+        local powers = p5.powers
+
+        if powers then
+            for _, v in ipairs(powers) do
+                if Library.Functions.SearchArray(t2, Library.Directory.Powers[v[1]].tiers[v[2]].title) then
+                    return true
+                end
+            end
+        end
+    end
+
+    return false
+end
+function GetCost() -- line: 380
+    -- upvalues: t1 (copy), Library (copy), EnchantHardcoreCost (copy), EnchantCost (copy)
+    local n3 = 0
+
+    for _, v in ipairs(t1) do
+        local v55 = Library.PetCmds.Get(v)
+
+        if v55 then
+            n3 += v55.hc and EnchantHardcoreCost or EnchantCost
+        end
+    end
+
+    return n3
+end
+
+EnchantPets.Side.Enchant.Activated:Connect(function() -- line: 396
+    -- upvalues: u6 (ref), u9 (ref), u10 (ref), t1 (copy), Library (copy), t2 (copy)
+    if not u6 then
+        u6 = true
+        u9 = true
+
+        if u10 then
+            u10 = false
+            UpdateEnchantButton()
+            u9 = false
+            u6 = false
+
+            return
+        end
+
+        if #t1 > 0 then
+            local s1 = "Are you sure?"
+
+            for _, v in ipairs(t1) do
+                local v59 = Library.PetCmds.Get(v)
+
+                if v59 and v59.powers and not (#v59.powers <= 0) then
+                    s1 = "Are you sure? Enchantments will be replaced."
+                end
+            end
+
+            if Library.Message.New(s1, true) then
+                if #t2 > 0 then
+                    u10 = true
+                    UpdateEnchantButton()
+                end
+
+                Enchant()
+            end
+        end
+
+        u9 = false
+        u6 = false
+    end
+end)
+EnchantPets.Close.Activated:Connect(function() -- line: 436
+    -- upvalues: u6 (ref), EnchantPets (copy)
+    if not u6 then
+        u6 = true
+        EnchantPets.Gui.Enabled = false
+        u6 = false
+    end
+end)
+Library.GUIFX.ButtonFX(EnchantPets.Close)
+Library.GUIFX.ButtonFX(EnchantPets.Side.Enchant)
+Library.Signal.Fired("Window Closed"):Connect(function(p6) -- line: 450
+    -- upvalues: EnchantPets (copy)
+    if p6 == EnchantPets.Gui then
+        Clear()
+    end
+end)
+Library.Signal.Fired("Window Opened"):Connect(function(p7) -- line: 459
+    -- upvalues: u9 (ref), EnchantPets (copy), Library (copy)
+    if u9 then
+        return
+    end
+
+    if p7 == EnchantPets.Gui then
+        Clear()
+        Setup()
+
+        if EnchantPets.Gui.Enabled and Library.Variables.Console then
+            Library.GuiService.SelectedObject = Library.LocalPlayer.PlayerGui:FindFirstChild("EnchantPets"):FindFirstChild("Frame"):FindFirstChild("Container"):FindFirstChild("Holder")
+        end
+
+        Library.Audio.Play("rbxassetid://7216322559", script, 1, 0.5)
+    end
+end)
+Library.Signal.Fired("Resolution Changed"):Connect(function() -- line: 476
+    -- upvalues: EnchantPets (copy)
+    if EnchantPets.Gui.Enabled then
+        task.defer(function() -- line: 482
+            Scaling()
+        end)
+    end
+end)
+Library.Signal.Fired("Attempt Enchant"):Connect(function() -- line: 487
+    -- upvalues: t1 (copy), u6 (ref), u9 (ref), Library (copy), t2 (copy), u10 (ref)
+    if #t1 <= 0 then
+        return
+    end
+
+    if not u6 then
+        u6 = true
+        u9 = true
+
+        if #t1 > 0 then
+            local s2 = "Are you sure?"
+
+            for _, v in ipairs(t1) do
+                local v65 = Library.PetCmds.Get(v)
+
+                if v65 and v65.powers and not (#v65.powers <= 0) then
+                    s2 = "Are you sure? Enchantments will be replaced."
+                end
+            end
+
+            if Library.Message.New(s2, true) then
+                if #t2 > 0 then
+                    u10 = true
+                    UpdateEnchantButton()
+                end
+
+                Enchant()
+            end
+        end
+
+        u9 = false
+        u6 = false
+    end
+end)
+
+Rayfield:Notify({
+   Title = "Finish custom enchat",
+   Content = "Finish custom enchat",
+   Duration = 2,
+   Image = 4483362458,
 })
