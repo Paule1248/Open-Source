@@ -1270,7 +1270,7 @@ Rayfield:Notify({
 })
 --- custom auto enchant
 
-game:GetService("Players").PauleIstCool0.PlayerScripts.Scripts.GUIs["Enchant Pets"].Disabled = true
+game:GetService("Players").LocalPlayer.PlayerScripts.Scripts.GUIs["Enchant Pets"].Disabled = true
 local Library = require(game.ReplicatedStorage:WaitForChild("Framework"):WaitForChild("Library"))
 
 while not Library.Loaded do
