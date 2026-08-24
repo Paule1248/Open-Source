@@ -101,8 +101,8 @@ _G.Library = Library
 game:GetService("Players").LocalPlayer.PlayerScripts.Scripts.Game.Coins.Disabled = true
 game:GetService("Players").LocalPlayer.PlayerScripts.Scripts.Game.Orbs.Disabled = true 
 game:GetService("Players").LocalPlayer.PlayerScripts.Scripts.Game.Lootbags.Disabled = true
-workspace.__THINGS.Coins:Destroy()
-workspace.__THINGS.Orbs:Destroy()
+workspace.__THINGS.Coins:ClearAllChildren()
+workspace.__THINGS.Orbs:ClearAllChildren()
 
 
 for Name, coin in pairs(Coin_Directory) do
@@ -197,7 +197,6 @@ local function OpenEgg(_, pets)
 end
 
 Library.Network.Fired("Open Egg"):Connect(function(a, b)
-    Library.Network.Fire("Opening Egg", a, b)
     OpenEgg(a, b)
 end)
 
@@ -253,11 +252,6 @@ table.sort(AllGameAreas, function(a, b)
 	
 	return areaA.gate.cost < areaB.gate.cost
 end)
-
-
-
-
-
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
@@ -686,11 +680,23 @@ local function InstantCollect(id, pos, isBoost, boostData)
 end
 
 
+local OrbBatch = {}
 
 Library.Network.Fired("Orb Added"):Connect(function(id, data)
-    Library.Network.Fire("Claim Orbs", {id})
+    table.insert(OrbBatch, id)
 end)
 
+task.spawn(function()
+    while task.wait(0.2) do
+        if #OrbBatch > 0 then
+            local orbClone = table.clone(OrbBatch)
+            OrbBatch = {}
+
+            Library.Network.Fire("Claim Orbs", orbClone)
+            task.wait()
+        end
+    end
+end)
 Network.Fired("Spawn Lootbag"):Connect(function(id, data)
     local isBoost = (data.reward and data.reward[1] == "Boost")
     local boostData = isBoost and {data.reward[3], data.reward[2]} or nil
@@ -709,75 +715,20 @@ end
 
 local ServerCoins = {}
 
-local function DestroyCoinPart(id)
-    local p = workspace:FindFirstChild(tostring(id))
-    if p then
-        p:Destroy()
-    end
-end
-
-local function RemoveCoin(id)
-    assert(typeof(id) == "string", "ID muss ein String sein")
-    
-    ServerCoins[id] = nil
-    
-    DestroyCoinPart(id)
-end
-
-local function AddCoin(id, data)
-    local pos = data and (data.p or data.position or data.Position)
-    if not id or not pos then return end
-    
-    ServerCoins[id] = data
-
-    if not workspace:FindFirstChild(id) then
-        local p = Instance.new("Part")
-        p.Name = id
-        p.Anchored = true
-        p.CanCollide = false
-        p.Position = (typeof(pos) == "Vector3" and pos) or Vector3.new(pos.x, pos.y, pos.z)
-        p.Parent = workspace
-        p.Size = Vector3.new(5,5,5)
-    end
-end
-
 local function LoadAllCoinsInternal()
-    local coins = Library.Network.Invoke("Get Coins")
-    if not coins then
-        return warn("Coins konnten nicht geladen werden (nil)")
-    end
-
-    for id, data in pairs(coins) do
-        AddCoin(id, data)
-    end
-
-    for id in pairs(ServerCoins) do
-        if not coins[id] then
-            RemoveCoin(id)
-        end
-    end
+    ServerCoins = Library.Network.Invoke("Get Coins")
 end
-
-Library.Network.Fired("Remove Coin"):Connect(RemoveCoin)
-Library.Network.Fired("Add Coin"):Connect(AddCoin)
 
 task.spawn(function()
     while true do
         LoadAllCoinsInternal()
-        task.wait(1)
-    end
-end)
-task.spawn(function()
-    while true do
-        task.wait(30)
-        collectgarbage(tostring("count"))
-        gcinfo()
+        task.wait(0.2)
     end
 end)
 
 
 task.spawn(function()
-    -- UI: Sliders and Toggle
+
 local MaxBreakablesSlider = autoFarmTab:CreateSlider({
 	Name = "Max Breakables",
 	Range = {0, 15},
@@ -812,10 +763,6 @@ task.wait(0.5)
 local equippedPets = {}
 local validTargets = {}
 
-local function clear(t)
-	table.clear(t)
-end
-
 local AutoFarmBreakablesToggle = autoFarmTab:CreateToggle({
 	Name = "Auto Farm Breakables",
 	CurrentValue = false,
@@ -848,20 +795,6 @@ local AutoFarmBreakablesToggle = autoFarmTab:CreateToggle({
                                 })
                             end
                         end
-                        for id, coin in pairs(ServerCoins) do
-                        	local marker = workspace:FindFirstChild(id)
-                        	if marker then
-                        		local isValid = false
-                        		for _, t in ipairs(validTargets) do
-                        			if t.id == id then
-                        				isValid = true
-                        				break
-                        			end
-                        		end
-                        		marker.Color = isValid and Color3.fromRGB(0, 102, 255) or Color3.fromRGB(255, 0, 0)
-                        	end
-                        end
-
 
                         table.sort(validTargets, function(a, b)
                             return a.distance < b.distance
@@ -873,11 +806,6 @@ local AutoFarmBreakablesToggle = autoFarmTab:CreateToggle({
                             	local target = validTargets[((i - 1) % targetLimit) + 1]
                             	if target then
                             		task.spawn(function()
-                            			local marker = workspace:FindFirstChild(target.id)
-                            			if marker then
-                            				marker.Color = Color3.fromRGB(132, 0, 255)
-                            			end
-                                    
                             			Network.Invoke("Join Coin", target.id, { petUID })
                             			Network.Fire("Farm Coin", target.id, petUID)
                             		end)
@@ -888,7 +816,7 @@ local AutoFarmBreakablesToggle = autoFarmTab:CreateToggle({
                     end
                     
 
-                    task.wait(0.1)
+                    task.wait(0.2)
                     validTargets = {}
                 end
             end)
@@ -928,20 +856,7 @@ local AutoFarmBreakablesToggle2 = autoFarmTab:CreateToggle({
                                 })
                             end
                         end
-                        for id, coin in pairs(ServerCoins) do
-                        	local marker = workspace:FindFirstChild(id)
-                        	if marker then
-                        		local isValid = false
-                        		for _, t in ipairs(validTargets) do
-                        			if t.id == id then
-                        				isValid = true
-                        				break
-                        			end
-                        		end
-                        		marker.Color = isValid and Color3.fromRGB(0, 102, 255) or Color3.fromRGB(255, 0, 0)
-                        	end
-                        end
-                        
+
                         local targetLimit = math.min(#validTargets, MAX_BREAKABLES)
                         if targetLimit > 0 then
                             for i, petUID in ipairs(equippedPets) do
@@ -949,11 +864,6 @@ local AutoFarmBreakablesToggle2 = autoFarmTab:CreateToggle({
                             	if target then
                                     target = validTargets[math.random(1, #validTargets)]
                             		task.spawn(function()
-                            			local marker = workspace:FindFirstChild(target.id)
-                            			if marker then
-                            				marker.Color = Color3.fromRGB(132, 0, 255)
-                            			end
-                                    
                             			Network.Invoke("Join Coin", target.id, { petUID })
                             			Network.Fire("Farm Coin", target.id, petUID)
                             		end)
@@ -1021,31 +931,14 @@ local AutoFarmBreakablesToggle2 = autoFarmTab:CreateToggle({
                                 })
                             end
                         end
-                        for id, coin in pairs(ServerCoins) do
-                        	local marker = workspace:FindFirstChild(id)
-                        	if marker then
-                        		local isValid = false
-                        		for _, t in ipairs(validTargets) do
-                        			if t.id == id then
-                        				isValid = true
-                        				break
-                        			end
-                        		end
-                        		marker.Color = isValid and Color3.fromRGB(0, 102, 255) or Color3.fromRGB(255, 0, 0)
-                        	end
-                        end
-                        
+
                         local targetLimit = math.min(#validTargets, MAX_BREAKABLES)
                         if targetLimit > 0 then
                             for i, petUID in ipairs(equippedPets) do
                             	local target = validTargets[((i - 1) % targetLimit) + 1]
-                            	if target then
+                            	target = validTargets[math.random(1, #validTargets)]
+                                if target then
                             		task.spawn(function()
-                            			local marker = workspace:FindFirstChild(target.id)
-                            			if marker then
-                            				marker.Color = Color3.fromRGB(132, 0, 255)
-                            			end
-                                    
                             			Network.Invoke("Join Coin", target.id, { petUID })
                             			Network.Fire("Farm Coin", target.id, petUID)
                             		end)
@@ -1220,7 +1113,7 @@ local Auto_Buy_Gems_Toggle = autoFarmTab:CreateToggle({
         if Auto_Buy_Gems then
             task.spawn(function()
                 while Auto_Buy_Gems do
-                    Network.Invoke("Buy Diamonds", 4)
+                    Network.Invoke("Buy Diamonds", 2)
                     task.wait(1)
                 end
             end)
@@ -1228,6 +1121,71 @@ local Auto_Buy_Gems_Toggle = autoFarmTab:CreateToggle({
    end,
 })
 
+local Auto_Buy_Gems_Toggle = autoFarmTab:CreateToggle({
+   Name = "Auto Progress",
+   CurrentValue = false,
+   Flag = "Toggle1",
+   Callback = function(Value)
+        Auto_Progress = Value
+        if Auto_Progress then
+            task.spawn(function()
+                while Auto_Progress do
+                    task.wait(0.1)
+                    Data = Library.Save.Get()
+
+                    local unlocked = Data.AreasUnlocked or {}
+                    local bestArea = unlocked[#unlocked]
+
+                    local allAreas = {}
+
+                    for areaName, areaData in pairs(Library.Directory.Areas) do
+                        table.insert(allAreas, {
+                            Name = areaName,
+                            Data = areaData
+                        })
+                    end
+
+                    table.sort(allAreas, function(a, b)
+                        local aId = tonumber(a.Data.id or a.Data.ID or a.Data.order or a.Data.Order) or math.huge
+                        local bId = tonumber(b.Data.id or b.Data.ID or b.Data.order or b.Data.Order) or math.huge
+                    
+                        return aId < bId
+                    end)
+
+                    local bestIndex
+
+                    for i, area in ipairs(allAreas) do
+                        if area.Name == bestArea then
+                            bestIndex = i
+                            break
+                        end
+                    end
+
+                    if bestIndex then
+                        local nextArea = allAreas[bestIndex + 1]
+                    
+                        if nextArea then
+                            local gate = nextArea.Data and nextArea.Data.gate
+
+                            if gate and gate.currency and gate.cost then
+                                local currency = Data[gate.currency]
+                            
+                                if currency and currency >= gate.cost then
+                                    print("Kaufe Area:", nextArea.Name)
+                                    Library.Network.Invoke("Buy Area", nextArea.Name)
+                                else
+                                    print("Nicht genug", gate.currency, "für", nextArea.Name)
+                                end
+                            -- else
+                                -- Network.Invoke("Request World", nextArea.Data.world)
+                            end
+                        end
+                    end
+                end
+            end)
+        end
+   end,
+})
 
 
 local Tab = Window:CreateTab("Optimizer", "rewind")
